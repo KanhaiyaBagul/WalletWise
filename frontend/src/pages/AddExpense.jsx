@@ -1,4 +1,3 @@
-// src/components/AddExpense.jsx
 import React, { useState } from 'react';
 import './AddExpense.css';
 
@@ -8,26 +7,36 @@ const AddExpense = ({ isOpen, onClose, onAddExpense }) => {
     category: 'food',
     date: new Date().toISOString().split('T')[0],
     paymentMethod: 'cash',
-    description: ''
+    description: '',
+    mood: 'neutral' // New behavioral component
   });
 
-  // Expense Categories Only
   const expenseCategories = [
-    { value: 'food', label: 'Food & Dining', icon: '🍕' },
-    { value: 'transport', label: 'Transportation', icon: '🚌' },
-    { value: 'shopping', label: 'Shopping', icon: '🛍️' },
-    { value: 'entertainment', label: 'Entertainment', icon: '🎬' },
-    { value: 'education', label: 'Education', icon: '📚' },
-    { value: 'healthcare', label: 'Health & Fitness', icon: '💊' },
-    { value: 'housing', label: 'Housing', icon: '🏠' },
-    { value: 'other', label: 'Other', icon: '📦' }
+    { value: 'food', label: 'Food & Dining' },
+    { value: 'transport', label: 'Transportation' },
+    { value: 'shopping', label: 'Shopping' },
+    { value: 'entertainment', label: 'Entertainment' },
+    { value: 'education', label: 'Education' },
+    { value: 'healthcare', label: 'Health & Fitness' },
+    { value: 'housing', label: 'Housing' },
+    { value: 'other', label: 'Other' }
+  ];
+
+  // Mood options to evaluate behavioral traces
+  const moodOptions = [
+    { value: 'happy', label: 'Happy / Excited' },
+    { value: 'stressed', label: 'Stressed / Tired' },
+    { value: 'bored', label: 'Bored / Impulsive' },
+    { value: 'sad', label: 'Sad / Low' },
+    { value: 'calm', label: 'Calm / Productive' },
+    { value: 'neutral', label: 'Neutral' }
   ];
 
   const paymentMethods = [
-    { value: 'cash', label: 'Cash', icon: '💵' },
-    { value: 'upi', label: 'UPI', icon: '📱' },
-    { value: 'card', label: 'Debit/Credit Card', icon: '💳' },
-    { value: 'online', label: 'Online', icon: '🏦' }
+    { value: 'cash', label: 'Cash' },
+    { value: 'upi', label: 'UPI' },
+    { value: 'card', label: 'Debit/Credit Card' },
+    { value: 'online', label: 'Online Banking' }
   ];
 
   const handleSubmit = (e) => {
@@ -39,41 +48,31 @@ const AddExpense = ({ isOpen, onClose, onAddExpense }) => {
     }
 
     const transactionData = {
-      type: 'expense', // Fixed as expense
+      type: 'expense',
       amount: Number(formData.amount),
       category: formData.category,
       description: formData.description || '',
       paymentMethod: formData.paymentMethod,
-      date: formData.date
+      date: formData.date,
+      mood: formData.mood // Sending mood data for behavioral analysis
     };
 
-    console.log('Sending expense data:', transactionData);
     onAddExpense(transactionData);
     onClose();
     
-    // Reset form
     setFormData({
       amount: '',
       category: 'food',
       date: new Date().toISOString().split('T')[0],
       paymentMethod: 'cash',
-      description: ''
+      description: '',
+      mood: 'neutral'
     });
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleCategoryClick = (categoryValue) => {
-    setFormData(prev => ({
-      ...prev,
-      category: categoryValue
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   if (!isOpen) return null;
@@ -82,23 +81,16 @@ const AddExpense = ({ isOpen, onClose, onAddExpense }) => {
     <div className="expense-modal-overlay">
       <div className="expense-modal-content">
         <div className="expense-modal-header expense-header">
-          <div className="header-left">
-            <i className="fas fa-receipt"></i>
-            <h2>Add Expense 💸</h2>
-          </div>
-          <button className="close-expense-btn" onClick={onClose}>
-            <i className="fas fa-times"></i>
-          </button>
+          <h2>Add Expense</h2>
+          <button className="close-expense-btn" onClick={onClose}>Close</button>
         </div>
 
         <form onSubmit={handleSubmit}>
           {/* Amount Field */}
           <div className="expense-form-group">
-            <label htmlFor="amount">
-              <i className="fas fa-rupee-sign"></i> Amount *
-            </label>
+            <label htmlFor="amount">Amount (Required)</label>
             <div className="expense-amount-input">
-              <span className="expense-currency">₹</span>
+              <span className="currency-label">₹</span>
               <input
                 type="number"
                 id="amount"
@@ -106,91 +98,93 @@ const AddExpense = ({ isOpen, onClose, onAddExpense }) => {
                 value={formData.amount}
                 onChange={handleChange}
                 placeholder="0.00"
-                min="0"
-                step="0.01"
                 required
                 autoFocus
               />
             </div>
           </div>
 
-          {/* Category Selection */}
+          {/* Behavioral Component: Mood Tracking */}
           <div className="expense-form-group">
-            <label>
-              <i className="fas fa-tags"></i> Category *
-            </label>
-            <div className="category-grid">
-              {expenseCategories.map(category => (
+            <label>How were you feeling during this purchase?</label>
+            <div className="selection-grid">
+              {moodOptions.map(m => (
                 <button
-                  key={category.value}
+                  key={m.value}
                   type="button"
-                  className={`category-btn ${formData.category === category.value ? 'selected' : ''}`}
-                  onClick={() => handleCategoryClick(category.value)}
+                  className={`selection-btn ${formData.mood === m.value ? 'active' : ''}`}
+                  aria-pressed={formData.mood === m.value}
+                  onClick={() => setFormData(prev => ({ ...prev, mood: m.value }))}
                 >
-                  <span className="category-icon">{category.icon}</span>
-                  <span className="category-label">{category.label}</span>
+                  {m.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Date Field */}
+          {/* Category Selection */}
           <div className="expense-form-group">
-            <label htmlFor="date">
-              <i className="fas fa-calendar-day"></i> Date
-            </label>
-            <input
-              type="date"
-              id="date"
-              name="date"
-              value={formData.date}
-              onChange={handleChange}
-            />
-          </div>
-
-          {/* Payment Method */}
-          <div className="expense-form-group">
-            <label>
-              <i className="fas fa-credit-card"></i> Payment Method
-            </label>
-            <div className="payment-method-grid">
-              {paymentMethods.map(method => (
+            <label>Category</label>
+            <div className="selection-grid">
+              {expenseCategories.map(cat => (
                 <button
-                  key={method.value}
+                  key={cat.value}
                   type="button"
-                  className={`payment-btn ${formData.paymentMethod === method.value ? 'selected' : ''}`}
-                  onClick={() => setFormData(prev => ({ ...prev, paymentMethod: method.value }))}
+                  className={`selection-btn ${formData.category === cat.value ? 'active' : ''}`}
+                  aria-pressed={formData.category === cat.value}
+                  onClick={() => setFormData(prev => ({ ...prev, category: cat.value }))}
                 >
-                  <span className="payment-icon">{method.icon}</span>
-                  <span className="payment-label">{method.label}</span>
+                  {cat.label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="form-row-flex">
+            {/* Date Field */}
+            <div className="expense-form-group flex-1">
+              <label htmlFor="date">Date</label>
+              <input
+                type="date"
+                id="date"
+                name="date"
+                value={formData.date}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Payment Method */}
+            <div className="expense-form-group flex-1">
+              <label htmlFor="paymentMethod">Payment Method</label>
+              <select 
+                id="paymentMethod" 
+                name="paymentMethod" 
+                value={formData.paymentMethod} 
+                onChange={handleChange}
+              >
+                {paymentMethods.map(pm => (
+                  <option key={pm.value} value={pm.value}>{pm.label}</option>
+                ))}
+              </select>
             </div>
           </div>
 
           {/* Description */}
           <div className="expense-form-group">
-            <label htmlFor="description">
-              <i className="fas fa-sticky-note"></i> Description (Optional)
-            </label>
+            <label htmlFor="description">Notes / Context</label>
             <textarea
               id="description"
               name="description"
               value={formData.description}
               onChange={handleChange}
-              placeholder="What was this expense for? e.g., Lunch with friends, Uber ride, etc."
-              rows="3"
+              placeholder="e.g., Reward for long day, Social gathering, etc."
+              rows="2"
             />
           </div>
 
-          {/* Form Actions */}
           <div className="expense-form-actions">
-            <button type="button" className="expense-btn-cancel" onClick={onClose}>
-              <i className="fas fa-times"></i> Cancel
-            </button>
-            <button type="submit" className="expense-btn-submit expense-btn">
-              <i className="fas fa-plus-circle"></i> Add Expense
-            </button>
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary">Save Expense</button>
           </div>
         </form>
       </div>

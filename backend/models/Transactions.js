@@ -34,6 +34,11 @@ const transactionSchema = new mongoose.Schema({
     type: String,
     enum: ['cash', 'card', 'upi', 'online'],
     default: 'cash'
+  },
+  mood: {
+    type: String,
+    enum: ['happy', 'stressed', 'bored', 'sad', 'calm', 'neutral'],
+    default: 'neutral'
   }
 }, { timestamps: true });
 

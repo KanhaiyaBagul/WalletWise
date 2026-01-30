@@ -1,31 +1,68 @@
-const express = require('express');
+﻿const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-
+const passport = require('passport');
+const { configurePassport } = require('./config/passport');
+const authRoutes = require('./routes/authRoutes');
+const oauthRoutes = require('./routes/oauthRoutes');
+const { protect } = require('./middleware/auth');
 dotenv.config();
 
+// Initialize Express app
 const app = express();
 
-// Middleware with request logging
-app.use((req, res, next) => {
-  console.log(`\n📨 ${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
-  if (req.method === 'POST' && req.body && Object.keys(req.body).length > 0) {
-    console.log('📝 Request Body:', JSON.stringify(req.body, null, 2));
+// ==================== ENHANCED ERROR LOGGING ====================
+process.on('uncaughtException', (error) => {
+  console.error('❌ UNCAUGHT EXCEPTION:', error);
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
   }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ UNHANDLED REJECTION at:', promise, 'reason:', reason);
+});
+
+// ==================== MIDDLEWARE SETUP ====================
+
+// CORS Configuration
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Body parsers
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Cookie parser
+app.use(cookieParser());
+
+// Passport setup (Google OAuth)
+configurePassport();
+app.use(passport.initialize());
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`\n═══════════════════════════════════════════════════`);
+  console.log(`📨 ${timestamp} - ${req.method} ${req.originalUrl}`);
+  console.log(`🌍 Origin: ${req.headers.origin || 'No origin'}`);
+  console.log(`🔑 Auth Header: ${req.headers.authorization || 'No auth header'}`);
+  console.log(`🍪 Cookies:`, req.cookies);
+  
+  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+    console.log(`📝 Request Body:`, JSON.stringify(req.body, null, 2));
+  }
+  
   next();
 });
 
-app.use(cors({
-  origin: 'http://localhost:3000',
-  credentials: true
-}));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// MongoDB Connection
+// ==================== DATABASE CONNECTION ====================
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/walletwise';
 
 console.log(`🔗 Connecting to MongoDB: ${MONGODB_URI}`);
@@ -39,9 +76,7 @@ mongoose.connect(MONGODB_URI, {
 .then(() => {
   console.log('✅ MongoDB Connected Successfully');
   console.log(`📊 Database: ${mongoose.connection.name}`);
-  
-  // Check existing users on startup
-  checkExistingUsers();
+  console.log(`📈 Collections:`, mongoose.connection.collections ? Object.keys(mongoose.connection.collections) : 'Not loaded yet');
 })
 .catch(err => {
   console.error('❌ MongoDB Connection Error:', err.message);
@@ -54,148 +89,127 @@ mongoose.connect(MONGODB_URI, {
 
 // ==================== MODELS ====================
 
-// User Schema
-const userSchema = new mongoose.Schema({
-  studentId: {
-    type: String,
-    required: [true, 'Student ID is required'],
-    unique: true,
-    trim: true
-  },
-  fullName: {
-    type: String,
-    required: [true, 'Full name is required'],
-    trim: true
-  },
-  email: {
-    type: String,
-    required: [true, 'Email is required'],
-    unique: true,
-    lowercase: true,
-    trim: true,
-    match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please provide a valid email address']
-  },
-  password: {
-    type: String,
-    required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters']
-  },
-  phoneNumber: {
-    type: String,
-    trim: true,
-    default: ''
-  },
-  department: {
-    type: String,
-    required: [true, 'Department is required'],
-    trim: true
-  },
-  year: {
-    type: String,
-    required: [true, 'Year is required'],
-    enum: ['1st', '2nd', '3rd', '4th', '5th']
-  },
-  walletBalance: {
-    type: Number,
-    default: 0
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
+// User Model
+const User = require('./models/User');
+const Transaction = require('./models/Transactions');
 
-// Hash password before saving
-userSchema.pre('save', async function(next) {
-  console.log(`🔐 Hashing password for user: ${this.email}`);
-  if (!this.isModified('password')) return next();
-  
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Method to compare password
-userSchema.methods.comparePassword = async function(candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
-};
-
-// Generate JWT token
-userSchema.methods.generateAuthToken = function() {
-  const token = jwt.sign(
-    { 
-      userId: this._id, 
-      email: this.email,
-      studentId: this.studentId
-    },
-    process.env.JWT_SECRET || 'walletwise-secret-key-2024',
-    { expiresIn: '7d' }
-  );
-  return token;
-};
-
-const User = mongoose.model('User', userSchema);
-
-// Transaction Schema
-const transactionSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  type: {
-    type: String,
-    enum: ['expense', 'income'],
-    required: true
-  },
-  amount: {
-    type: Number,
-    required: true,
-    min: 0
-  },
-  category: {
-    type: String,
-    enum: ['food', 'transport', 'shopping', 'entertainment', 'education', 'healthcare', 'housing', 'other'],
-    required: true
-  },
-  description: {
-    type: String,
-    trim: true
-  },
-  date: {
-    type: Date,
-    default: Date.now
-  },
-  paymentMethod: {
-    type: String,
-    enum: ['cash', 'card', 'upi', 'online'],
-    default: 'cash'
-  }
-}, { timestamps: true });
-
-const Transaction = mongoose.model('Transaction', transactionSchema);
-
-// Budget Schema
+// Budget Model
 const budgetSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
-    unique: true
+    required: true
   },
-  monthlyBudget: {
+  totalBudget: {
     type: Number,
-    required: true,
-    min: 0
+    required: [true, 'Total budget amount is required'],
+    min: [1, 'Budget amount must be greater than 0']
   },
   categories: [{
-    category: String,
-    limit: Number
+    name: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    percentage: {
+      type: Number,
+      required: true,
+      min: 0,
+      max: 100
+    },
+    color: {
+      type: String,
+      default: '#667eea'
+    }
   }],
+  month: {
+    type: String,
+    required: true,
+    match: [/^\d{4}-\d{2}$/, 'Month must be in YYYY-MM format']
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
+});
+
+// Create compound index for user and month
+budgetSchema.index({ userId: 1, month: 1 }, { unique: true });
+
+// Pre-save hook to update updatedAt
+budgetSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
+  next();
+});
+
+
+// Savings Goal Model - SIMPLIFIED
+const savingsGoalSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true
+  },
+  name: {
+    type: String,
+    required: [true, 'Goal name is required'],
+    trim: true
+  },
+  description: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  targetAmount: {
+    type: Number,
+    required: [true, 'Target amount is required'],
+    min: [1, 'Target amount must be greater than 0']
+  },
+  currentAmount: {
+    type: Number,
+    default: 0,
+    min: [0, 'Current amount cannot be negative']
+  },
+  targetDate: {
+    type: Date,
+    required: [true, 'Target date is required']
+  },
+  category: {
+    type: String,
+    default: 'Other'
+  },
+  priority: {
+    type: String,
+    default: 'Medium'
+  },
+  monthlyContribution: {
+    type: Number,
+    default: 0
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  progress: {
+    type: Number,
+    default: 0
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -206,306 +220,178 @@ const budgetSchema = new mongoose.Schema({
   }
 });
 
-const Budget = mongoose.model('Budget', budgetSchema);
-
-// Savings Goal Schema
-const savingsGoalSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  name: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  targetAmount: {
-    type: Number,
-    required: true,
-    min: 0
-  },
-  currentAmount: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-  targetDate: {
-    type: Date,
-    required: true
-  },
-  category: {
-    type: String,
-    enum: ['emergency', 'vacation', 'gadget', 'education', 'vehicle', 'other'],
-    default: 'other'
-  },
-  completed: {
-    type: Boolean,
-    default: false
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
+// Calculate progress before saving
+savingsGoalSchema.pre('save', function(next) {
+  if (this.targetAmount > 0) {
+    this.progress = Math.min(100, (this.currentAmount / this.targetAmount) * 100);
+  } else {
+    this.progress = 0;
   }
+  this.updatedAt = new Date();
+  next();
 });
 
+// Create models
+const Budget = mongoose.model('Budget', budgetSchema);
 const SavingsGoal = mongoose.model('SavingsGoal', savingsGoalSchema);
 
 // ==================== HELPER FUNCTIONS ====================
 
-// Function to check existing users
-async function checkExistingUsers() {
-  try {
-    const userCount = await User.countDocuments();
-    console.log(`👥 Total users in database: ${userCount}`);
-    
-    if (userCount > 0) {
-      const users = await User.find({}, 'studentId email fullName createdAt').limit(5);
-      console.log('📋 Recent users:');
-      users.forEach(user => {
-        console.log(`  - ${user.studentId}: ${user.email} (${user.fullName}) - ${user.createdAt}`);
-      });
-    }
-  } catch (error) {
-    console.error('Error checking existing users:', error);
-  }
-}
-
-// Middleware to verify JWT token
-const verifyToken = (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'Access denied. No token provided.'
-      });
-    }
-    
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'walletwise-secret-key-2024');
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    console.error('Token verification error:', error);
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid or expired token'
-    });
-  }
-};
-
-// ==================== ROUTES ====================
-
-// Debug route to check all users
-app.get('/api/debug/users', async (req, res) => {
-  try {
-    const users = await User.find({}, '-password').sort({ createdAt: -1 });
-    const total = await User.countDocuments();
-    
-    res.json({
-      success: true,
-      totalUsers: total,
-      users: users,
-      databaseInfo: {
-        name: mongoose.connection.name,
-        host: mongoose.connection.host,
-        readyState: mongoose.connection.readyState
+// Simple sanitization
+const sanitizeInput = (req, res, next) => {
+  if (req.body) {
+    for (let key in req.body) {
+      if (typeof req.body[key] === 'string') {
+        req.body[key] = req.body[key].trim();
       }
-    });
-  } catch (error) {
-    console.error('Debug error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching users',
-      error: error.message
-    });
-  }
-});
-
-// Clear all users (for testing only)
-app.delete('/api/debug/clear-users', async (req, res) => {
-  try {
-    const result = await User.deleteMany({});
-    console.log(`🗑️ Cleared ${result.deletedCount} users`);
-    
-    res.json({
-      success: true,
-      message: `Cleared ${result.deletedCount} users`,
-      deletedCount: result.deletedCount
-    });
-  } catch (error) {
-    console.error('Clear users error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error clearing users',
-      error: error.message
-    });
-  }
-});
-
-// Check if student ID or email exists (for real-time validation)
-app.get('/api/auth/check-availability', async (req, res) => {
-  try {
-    const { studentId, email } = req.query;
-    
-    if (!studentId && !email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide studentId or email to check'
-      });
     }
-    
-    const query = {};
-    if (studentId) query.studentId = studentId.trim();
-    if (email) query.email = email.toLowerCase().trim();
-    
-    const existingUser = await User.findOne(query);
-    
-    res.json({
-      success: true,
-      exists: !!existingUser,
-      user: existingUser ? {
-        studentId: existingUser.studentId,
-        email: existingUser.email
-      } : null
-    });
-    
-  } catch (error) {
-    console.error('Check availability error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error checking availability',
-      error: error.message
-    });
   }
-});
+  next();
+};
 
 // ==================== AUTH ROUTES ====================
 
-// Register Route
-app.post('/api/auth/register', async (req, res) => {
+app.use('/api/auth', authRoutes);
+app.use('/auth', oauthRoutes);
+
+// ==================== BUDGET ROUTES ====================
+
+// Set/Update Budget
+app.post('/api/budget', protect, sanitizeInput, async (req, res) => {
   try {
-    console.log('\n📝 REGISTRATION REQUEST');
+    console.log('\n💰 SET BUDGET REQUEST');
+    console.log('User ID:', req.userId);
     console.log('Request body:', req.body);
     
-    const { studentId, name, fullName, email, password, phoneNumber, department, year } = req.body;
+    const { totalBudget, categories, month } = req.body;
     
-    const userName = name || fullName;
-    
-    if (!studentId || !userName || !email || !password || !department || !year) {
-      console.log('❌ Missing required fields');
+    // Validation
+    if (!totalBudget || totalBudget <= 0) {
       return res.status(400).json({
         success: false,
-        message: 'All required fields: studentId, name/fullName, email, password, department, year'
+        message: 'Valid total budget amount is required'
       });
     }
     
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      console.log('❌ Invalid email format:', email);
+    if (!categories || !Array.isArray(categories) || categories.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide a valid email address'
+        message: 'At least one category is required'
       });
     }
     
-    if (password.length < 6) {
-      console.log('❌ Password too short');
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 6 characters long'
-      });
-    }
+    // Validate categories
+    let totalPercentage = 0;
+    let totalAmount = 0;
     
-    const validYears = ['1st', '2nd', '3rd', '4th', '5th'];
-    if (!validYears.includes(year)) {
-      console.log('❌ Invalid year:', year);
-      return res.status(400).json({
-        success: false,
-        message: 'Year must be one of: 1st, 2nd, 3rd, 4th, 5th'
-      });
-    }
-    
-    const normalizedStudentId = studentId.trim();
-    const normalizedEmail = email.toLowerCase().trim();
-    const normalizedName = userName.trim();
-    const normalizedDepartment = department.trim();
-    const normalizedPhoneNumber = phoneNumber ? phoneNumber.trim() : '';
-    
-    console.log(`🔍 Checking for existing user with email: "${normalizedEmail}" or studentId: "${normalizedStudentId}"`);
-    
-    const existingUser = await User.findOne({ 
-      $or: [
-        { email: normalizedEmail },
-        { studentId: normalizedStudentId }
-      ] 
-    });
-    
-    if (existingUser) {
-      console.log('❌ User already exists!');
-      
-      let message = 'User already exists';
-      if (existingUser.email === normalizedEmail && existingUser.studentId === normalizedStudentId) {
-        message = `User with email "${existingUser.email}" and student ID "${existingUser.studentId}" already exists`;
-      } else if (existingUser.email === normalizedEmail) {
-        message = `User with email "${existingUser.email}" already exists`;
-      } else if (existingUser.studentId === normalizedStudentId) {
-        message = `User with student ID "${existingUser.studentId}" already exists`;
+    for (const category of categories) {
+      if (!category.name || category.amount === undefined || category.percentage === undefined) {
+        return res.status(400).json({
+          success: false,
+          message: 'Each category must have name, amount, and percentage'
+        });
       }
       
+      if (category.percentage < 0 || category.percentage > 100) {
+        return res.status(400).json({
+          success: false,
+          message: `Percentage for ${category.name} must be between 0 and 100`
+        });
+      }
+      
+      if (category.amount < 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Amount for ${category.name} cannot be negative`
+        });
+      }
+      
+      totalPercentage += category.percentage;
+      totalAmount += category.amount;
+    }
+    
+    // Check if percentages sum to 100
+    if (Math.abs(totalPercentage - 100) > 0.01) {
       return res.status(400).json({
         success: false,
-        message: message
+        message: `Total percentage must be 100%. Currently ${totalPercentage.toFixed(2)}%`
       });
     }
     
-    console.log('✅ No existing user found, creating new user...');
+    // Check if total amount matches sum of categories
+    if (Math.abs(totalAmount - totalBudget) > 0.01) {
+      return res.status(400).json({
+        success: false,
+        message: `Sum of category amounts (${totalAmount}) must equal total budget (${totalBudget})`
+      });
+    }
     
-    const user = new User({
-      studentId: normalizedStudentId,
-      fullName: normalizedName,
-      email: normalizedEmail,
-      password: password,
-      phoneNumber: normalizedPhoneNumber,
-      department: normalizedDepartment,
-      year: year,
-      walletBalance: 0
+    // Determine month (use current month if not provided)
+    const budgetMonth = month || new Date().toISOString().slice(0, 7);
+    
+    // Validate month format
+    const monthRegex = /^\d{4}-\d{2}$/;
+    if (!monthRegex.test(budgetMonth)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Month must be in YYYY-MM format'
+      });
+    }
+    
+    // Check if budget for this month already exists
+    let budget = await Budget.findOne({
+      userId: req.userId,
+      month: budgetMonth,
+      isActive: true
     });
     
-    await user.save();
-    console.log('✅ User created successfully!');
+    if (budget) {
+      // Update existing budget
+      budget.totalBudget = totalBudget;
+      budget.categories = categories;
+      budget.updatedAt = new Date();
+      await budget.save();
+      console.log('✅ Budget updated:', budget._id);
+    } else {
+      // Create new budget
+      budget = new Budget({
+        userId: req.userId,
+        totalBudget,
+        categories,
+        month: budgetMonth,
+        isActive: true
+      });
+      await budget.save();
+      console.log('✅ Budget created:', budget._id);
+    }
     
-    const token = user.generateAuthToken();
-    
-    res.status(201).json({
+    // Send success response
+    res.status(200).json({
       success: true,
-      message: 'Registration successful!',
-      user: {
-        id: user._id,
-        studentId: user.studentId,
-        fullName: user.fullName,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        department: user.department,
-        year: user.year,
-        walletBalance: user.walletBalance,
-        createdAt: user.createdAt
+      message: 'Budget set successfully! 🎉',
+      notification: {
+        type: 'success',
+        title: 'Budget Set',
+        message: `Your monthly budget of ₹${totalBudget.toLocaleString()} has been set successfully.`,
+        timestamp: new Date().toISOString()
       },
-      token: token
+      budget: {
+        id: budget._id,
+        totalBudget: budget.totalBudget,
+        categories: budget.categories,
+        month: budget.month,
+        createdAt: budget.createdAt,
+        updatedAt: budget.updatedAt
+      }
     });
     
   } catch (error) {
-    console.error('\n❌ REGISTRATION ERROR:', error.message);
+    console.error('❌ Set budget error:', error);
     
     if (error.code === 11000) {
-      const duplicateField = Object.keys(error.keyPattern)[0];
-      const duplicateValue = error.keyValue[duplicateField];
-      const fieldName = duplicateField === 'studentId' ? 'Student ID' : 'Email';
-      
       return res.status(400).json({
         success: false,
-        message: `${fieldName} "${duplicateValue}" is already registered`
+        message: 'Budget for this month already exists'
       });
     }
     
@@ -519,96 +405,672 @@ app.post('/api/auth/register', async (req, res) => {
     
     res.status(500).json({
       success: false,
-      message: 'Server error during registration'
+      message: 'Failed to set budget. Please try again.'
     });
   }
 });
 
-// Login Route
-app.post('/api/auth/login', async (req, res) => {
+// Get Current Budget
+app.get('/api/budget/current', protect, async (req, res) => {
   try {
-    console.log('\n🔐 LOGIN REQUEST');
-    const { email, password } = req.body;
+    console.log('\n📊 GET CURRENT BUDGET REQUEST');
+    console.log('User ID:', req.userId);
     
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email and password are required'
-      });
-    }
-    
-    const normalizedEmail = email.toLowerCase().trim();
-    const user = await User.findOne({ email: normalizedEmail });
-    
-    if (!user) {
-      console.log('❌ User not found:', normalizedEmail);
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
-    }
-    
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-      console.log('❌ Invalid password for user:', user.email);
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
-    }
-    
-    const token = user.generateAuthToken();
-    
-    console.log('✅ Login successful for:', user.email);
-    
-    res.json({
-      success: true,
-      message: 'Login successful',
-      user: {
-        id: user._id,
-        studentId: user.studentId,
-        fullName: user.fullName,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        department: user.department,
-        year: user.year,
-        walletBalance: user.walletBalance,
-        createdAt: user.createdAt
-      },
-      token: token
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const budget = await Budget.findOne({
+      userId: req.userId,
+      month: currentMonth,
+      isActive: true
     });
     
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during login'
-    });
-  }
-});
-
-// Get current user
-app.get('/api/auth/me', verifyToken, async (req, res) => {
-  try {
-    const user = await User.findById(req.userId).select('-password');
-    
-    if (!user) {
+    if (!budget) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'No budget set for current month',
+        hasBudget: false,
+        notification: {
+          type: 'info',
+          title: 'No Budget Found',
+          message: 'You have not set a budget for this month. Click "Set Budget" to create one.',
+          timestamp: new Date().toISOString()
+        }
       });
     }
     
     res.json({
       success: true,
-      user: user
+      hasBudget: true,
+      message: 'Budget found for current month',
+      budget: {
+        id: budget._id,
+        totalBudget: budget.totalBudget,
+        categories: budget.categories,
+        month: budget.month,
+        createdAt: budget.createdAt,
+        updatedAt: budget.updatedAt
+      }
     });
     
   } catch (error) {
-    console.error('Auth error:', error);
+    console.error('Get current budget error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Failed to fetch budget'
+    });
+  }
+});
+
+// Get Budget by Month
+app.get('/api/budget/:month', protect, async (req, res) => {
+  try {
+    const { month } = req.params;
+    const userId = req.userId;
+    
+    // Validate month format
+    const monthRegex = /^\d{4}-\d{2}$/;
+    if (!monthRegex.test(month)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Month must be in YYYY-MM format'
+      });
+    }
+    
+    const budget = await Budget.findOne({
+      userId,
+      month,
+      isActive: true
+    });
+    
+    if (!budget) {
+      return res.status(404).json({
+        success: false,
+        message: `No budget found for ${month}`,
+        hasBudget: false
+      });
+    }
+    
+    res.json({
+      success: true,
+      hasBudget: true,
+      budget: budget
+    });
+    
+  } catch (error) {
+    console.error('Get budget by month error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch budget'
+    });
+  }
+});
+
+// Get All User Budgets
+app.get('/api/budget', protect, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const budgets = await Budget.find({ 
+      userId,
+      isActive: true 
+    }).sort({ month: -1 });
+    
+    res.json({
+      success: true,
+      count: budgets.length,
+      budgets: budgets.map(budget => ({
+        id: budget._id,
+        totalBudget: budget.totalBudget,
+        categories: budget.categories,
+        month: budget.month,
+        createdAt: budget.createdAt,
+        updatedAt: budget.updatedAt
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Get all budgets error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch budgets'
+    });
+  }
+});
+
+// Copy Previous Month's Budget
+app.post('/api/budget/copy-previous', protect, async (req, res) => {
+  try {
+    console.log('\n📋 COPY PREVIOUS MONTH BUDGET REQUEST');
+    console.log('User ID:', req.userId);
+    
+    const currentDate = new Date();
+    const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1)
+      .toISOString().slice(0, 7);
+    
+    const previousBudget = await Budget.findOne({ 
+      userId: req.userId, 
+      month: previousMonth,
+      isActive: true 
+    });
+    
+    if (!previousBudget) {
+      return res.status(404).json({
+        success: false,
+        message: 'No previous month budget found to copy'
+      });
+    }
+    
+    const currentMonth = currentDate.toISOString().slice(0, 7);
+    
+    // Check if current month budget already exists
+    const existingBudget = await Budget.findOne({ 
+      userId: req.userId, 
+      month: currentMonth,
+      isActive: true 
+    });
+    
+    if (existingBudget) {
+      return res.status(400).json({
+        success: false,
+        message: 'Budget for current month already exists'
+      });
+    }
+    
+    // Create new budget for current month
+    const newBudget = new Budget({
+      userId: previousBudget.userId,
+      totalBudget: previousBudget.totalBudget,
+      categories: previousBudget.categories.map(cat => ({
+        name: cat.name,
+        amount: cat.amount,
+        percentage: cat.percentage,
+        color: cat.color
+      })),
+      month: currentMonth,
+      isActive: true
+    });
+    
+    await newBudget.save();
+    
+    res.status(201).json({
+      success: true,
+      message: 'Previous month budget copied successfully!',
+      notification: {
+        type: 'success',
+        title: 'Budget Copied',
+        message: `Budget of ₹${newBudget.totalBudget.toLocaleString()} has been copied from previous month.`,
+        timestamp: new Date().toISOString()
+      },
+      budget: {
+        id: newBudget._id,
+        totalBudget: newBudget.totalBudget,
+        categories: newBudget.categories,
+        month: newBudget.month,
+        createdAt: newBudget.createdAt
+      }
+    });
+    
+  } catch (error) {
+    console.error('Copy previous budget error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to copy previous month budget'
+    });
+  }
+});
+
+// Delete/Deactivate Budget
+app.delete('/api/budget/:id', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+    
+    const budget = await Budget.findOne({
+      _id: id,
+      userId
+    });
+    
+    if (!budget) {
+      return res.status(404).json({
+        success: false,
+        message: 'Budget not found'
+      });
+    }
+    
+    // Soft delete by setting isActive to false
+    budget.isActive = false;
+    await budget.save();
+    
+    res.json({
+      success: true,
+      message: 'Budget deleted successfully'
+    });
+    
+  } catch (error) {
+    console.error('Delete budget error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete budget'
+    });
+  }
+});
+
+// Update Budget
+app.put('/api/budget/:id', protect, sanitizeInput, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+    const updates = req.body;
+    
+    const budget = await Budget.findOne({
+      _id: id,
+      userId,
+      isActive: true
+    });
+    
+    if (!budget) {
+      return res.status(404).json({
+        success: false,
+        message: 'Budget not found'
+      });
+    }
+    
+    // Validate if updating
+    if (updates.categories) {
+      const totalPercentage = updates.categories.reduce((sum, cat) => sum + cat.percentage, 0);
+      if (Math.abs(totalPercentage - 100) > 0.01) {
+        return res.status(400).json({
+          success: false,
+          message: `Total percentage must be 100%. Currently ${totalPercentage.toFixed(2)}%`
+        });
+      }
+    }
+    
+    // Update fields
+    Object.keys(updates).forEach(key => {
+      if (key !== '_id' && key !== 'userId' && key !== 'month') {
+        budget[key] = updates[key];
+      }
+    });
+    
+    await budget.save();
+    
+    res.json({
+      success: true,
+      message: 'Budget updated successfully',
+      notification: {
+        type: 'success',
+        title: 'Budget Updated',
+        message: `Your budget has been updated successfully.`,
+        timestamp: new Date().toISOString()
+      },
+      budget: budget
+    });
+    
+  } catch (error) {
+    console.error('Update budget error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update budget'
+    });
+  }
+});
+
+// Budget Summary/Statistics
+app.get('/api/budget/stats/summary', protect, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const budget = await Budget.findOne({
+      userId,
+      month: currentMonth,
+      isActive: true
+    });
+
+    const monthlyExpenses = await Transaction.find({
+      userId,
+      type: 'expense',
+      date: { $gte: startOfMonth }
+    });
+
+    const totalSpent = monthlyExpenses.reduce((sum, tx) => sum + tx.amount, 0);
+
+    if (!budget) {
+      return res.json({
+        success: true,
+        hasBudget: false,
+        message: 'No budget set for current month',
+        summary: {
+          totalBudget: 0,
+          categories: [],
+          spent: totalSpent,
+          remaining: 0,
+          utilization: 0
+        }
+      });
+    }
+    
+    const normalize = (value) =>
+      String(value || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '');
+
+    const categoryAliases = {
+      food: ['food', 'grocery', 'grocer', 'dining', 'restaurant'],
+      transport: ['transport', 'travel', 'fuel', 'gas', 'uber', 'taxi', 'bus', 'train'],
+      shopping: ['shopping', 'shop', 'clothes', 'apparel'],
+      entertainment: ['entertain', 'movie', 'game', 'fun', 'subscription'],
+      education: ['education', 'school', 'tuition', 'course', 'book'],
+      healthcare: ['health', 'medical', 'doctor', 'pharmacy'],
+      housing: ['housing', 'rent', 'utility', 'utilities', 'home'],
+      other: ['other', 'misc']
+    };
+
+    const spentByCategory = new Map();
+    monthlyExpenses.forEach((tx) => {
+      const key = normalize(tx.category);
+      spentByCategory.set(key, (spentByCategory.get(key) || 0) + tx.amount);
+    });
+
+    const matchTransactionCategories = (categoryName) => {
+      const normalized = normalize(categoryName);
+      if (!normalized) return [];
+
+      const directMatch = Object.keys(categoryAliases).find((key) => key === normalized);
+      if (directMatch) return [directMatch];
+
+      return Object.entries(categoryAliases)
+        .filter(([, aliases]) => aliases.some((alias) => normalized.includes(normalize(alias))))
+        .map(([key]) => key);
+    };
+
+    const categoriesWithSpend = budget.categories.map((category) => {
+      const matches = matchTransactionCategories(category.name);
+      const spent = matches.reduce((sum, key) => sum + (spentByCategory.get(key) || 0), 0);
+      return {
+        ...category.toObject(),
+        spent
+      };
+    });
+
+    const utilization = budget.totalBudget > 0
+      ? Math.min((totalSpent / budget.totalBudget) * 100, 100)
+      : 0;
+
+    res.json({
+      success: true,
+      hasBudget: true,
+      summary: {
+        totalBudget: budget.totalBudget,
+        categories: categoriesWithSpend.map(cat => ({
+          name: cat.name,
+          allocated: cat.amount,
+          spent: cat.spent,
+          remaining: Math.max(cat.amount - cat.spent, 0),
+          utilization: cat.amount > 0 ? Math.min((cat.spent / cat.amount) * 100, 100) : 0,
+          color: cat.color
+        })),
+        spent: totalSpent,
+        remaining: Math.max(budget.totalBudget - totalSpent, 0),
+        utilization
+      }
+    });
+    
+  } catch (error) {
+    console.error('Budget summary error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get budget summary'
+    });
+  }
+});
+
+// ==================== SAVINGS GOALS ROUTES ====================
+
+// Create Savings Goal - SIMPLIFIED
+app.post('/api/savings-goals', sanitizeInput, protect, async (req, res) => {
+  try {
+    console.log('\n🎯 CREATE SAVINGS GOAL REQUEST');
+    console.log('User ID:', req.userId);
+    console.log('Request body:', req.body);
+    
+    const {
+      name,
+      description = '',
+      targetAmount,
+      currentAmount = 0,
+      targetDate,
+      category = 'Other',
+      priority = 'Medium',
+      monthlyContribution = 0
+    } = req.body;
+
+    // Basic validation
+    if (!name || !targetAmount || !targetDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, target amount, and target date are required'
+      });
+    }
+
+    // Parse amounts
+    const parsedTarget = parseFloat(targetAmount);
+    const parsedCurrent = parseFloat(currentAmount) || 0;
+    const parsedMonthly = parseFloat(monthlyContribution) || 0;
+
+    if (isNaN(parsedTarget) || parsedTarget <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid target amount is required'
+      });
+    }
+
+    // Create goal
+    const savingsGoal = new SavingsGoal({
+      userId: req.userId,
+      name: name.trim(),
+      description: description.trim(),
+      targetAmount: parsedTarget,
+      currentAmount: parsedCurrent,
+      targetDate: new Date(targetDate),
+      category,
+      priority,
+      monthlyContribution: parsedMonthly,
+      isActive: true
+    });
+
+    console.log('Saving goal to database...');
+    await savingsGoal.save();
+    console.log('✅ Goal saved with ID:', savingsGoal._id);
+
+    res.status(201).json({
+      success: true,
+      message: 'Savings goal created successfully',
+      goal: {
+        id: savingsGoal._id,
+        name: savingsGoal.name,
+        targetAmount: savingsGoal.targetAmount,
+        currentAmount: savingsGoal.currentAmount,
+        targetDate: savingsGoal.targetDate,
+        progress: savingsGoal.progress
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Create savings goal error:', error);
+    console.error('Error stack:', error.stack);
+    
+    let errorMessage = 'Failed to create savings goal';
+    
+    if (error.name === 'ValidationError') {
+      errorMessage = Object.values(error.errors).map(e => e.message).join(', ');
+    } else if (error.code === 11000) {
+      errorMessage = 'Duplicate goal detected';
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: errorMessage,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Get all savings goals
+app.get('/api/savings-goals', protect, async (req, res) => {
+  try {
+    const goals = await SavingsGoal.find({ userId: req.userId, isActive: true });
+    
+    res.json({
+      success: true,
+      goals: goals.map(g => ({
+        id: g._id,
+        name: g.name,
+        targetAmount: g.targetAmount,
+        currentAmount: g.currentAmount,
+        targetDate: g.targetDate,
+        progress: g.progress
+      })),
+      count: goals.length
+    });
+  } catch (error) {
+    console.error('Get goals error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch goals' });
+  }
+});
+
+// Add amount to a savings goal
+app.patch('/api/savings-goals/:id/add', sanitizeInput, protect, async (req, res) => {
+  try {
+    const goalId = req.params.id;
+    const amount = parseFloat(req.body?.amount);
+
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid amount is required'
+      });
+    }
+
+    const goal = await SavingsGoal.findOne({ _id: goalId, userId: req.userId, isActive: true });
+
+    if (!goal) {
+      return res.status(404).json({
+        success: false,
+        message: 'Goal not found'
+      });
+    }
+
+    const nextAmount = Math.min(goal.targetAmount, goal.currentAmount + amount);
+    goal.currentAmount = nextAmount;
+    await goal.save();
+
+    res.json({
+      success: true,
+      message: 'Amount added successfully',
+      goal: {
+        id: goal._id,
+        name: goal.name,
+        targetAmount: goal.targetAmount,
+        currentAmount: goal.currentAmount,
+        targetDate: goal.targetDate,
+        progress: goal.progress,
+        category: goal.category,
+        isActive: goal.isActive
+      }
+    });
+  } catch (error) {
+    console.error('Add amount error:', error);
+    res.status(500).json({ success: false, message: 'Failed to add amount' });
+  }
+});
+
+// ==================== TRANSACTION ROUTES ====================
+
+// Add Transaction
+app.post('/api/transactions', sanitizeInput, protect, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { type, amount, category, description, paymentMethod, mood } = req.body;
+
+    if (!type || !amount || !category) {
+      return res.status(400).json({
+        success: false,
+        message: 'Type, amount, and category are required'
+      });
+    }
+
+    if (amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Amount must be greater than 0'
+      });
+    }
+
+    const transaction = new Transaction({
+      userId,
+      type,
+      amount,
+      category,
+      description,
+      paymentMethod: paymentMethod || 'cash',
+      mood: mood || 'neutral'
+    });
+
+    await transaction.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Transaction added successfully',
+      transaction: {
+        id: transaction._id,
+        type: transaction.type,
+        amount: transaction.amount,
+        category: transaction.category,
+        description: transaction.description,
+        date: transaction.date,
+        paymentMethod: transaction.paymentMethod,
+        mood: transaction.mood
+      }
+    });
+
+  } catch (error) {
+    console.error('Add transaction error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error adding transaction' 
+    });
+  }
+});
+
+// Get all transactions
+app.get('/api/transactions', protect, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const transactions = await Transaction.find({ userId })
+      .sort({ date: -1 });
+
+    res.json({
+      success: true,
+      transactions: transactions.map(t => ({
+        id: t._id,
+        type: t.type,
+        amount: t.amount,
+        category: t.category,
+        description: t.description,
+        date: t.date,
+        paymentMethod: t.paymentMethod,
+        mood: t.mood
+      }))
+    });
+
+  } catch (error) {
+    console.error('Get transactions error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching transactions' 
     });
   }
 });
@@ -616,25 +1078,26 @@ app.get('/api/auth/me', verifyToken, async (req, res) => {
 // ==================== DASHBOARD ROUTES ====================
 
 // Dashboard Summary
-app.get('/api/dashboard/summary', verifyToken, async (req, res) => {
+app.get('/api/dashboard/summary', protect, async (req, res) => {
   try {
     const userId = req.userId;
     const currentDate = new Date();
     const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const startOfWeek = new Date(currentDate);
-    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
+    const startOfPrevMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+    const endOfPrevMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0, 23, 59, 59, 999);
 
     // Get all data in parallel
     const [transactions, budget, savingsGoals, user] = await Promise.all([
       Transaction.find({ userId }),
-      Budget.findOne({ userId }),
-      SavingsGoal.find({ userId, completed: false }),
-      User.findById(userId).select('-password')
+      Budget.findOne({ userId, isActive: true }),
+      SavingsGoal.find({ userId, isActive: true }),
+      User.findById(userId).select('-passwordHash -refreshTokenHash')
     ]);
 
     // Calculate monthly expenses and income
-    const monthlyTransactions = transactions.filter(t => 
-      t.date >= startOfMonth
+    const monthlyTransactions = transactions.filter(t => t.date >= startOfMonth);
+    const prevMonthTransactions = transactions.filter(
+      t => t.date >= startOfPrevMonth && t.date <= endOfPrevMonth
     );
     
     const monthlyExpenses = monthlyTransactions
@@ -645,34 +1108,9 @@ app.get('/api/dashboard/summary', verifyToken, async (req, res) => {
       .filter(t => t.type === 'income')
       .reduce((sum, t) => sum + t.amount, 0);
 
-    // Calculate category spending
-    const categorySpending = {};
-    monthlyTransactions
+    const prevMonthExpenses = prevMonthTransactions
       .filter(t => t.type === 'expense')
-      .forEach(t => {
-        categorySpending[t.category] = (categorySpending[t.category] || 0) + t.amount;
-      });
-
-    const categorySpendingArray = Object.entries(categorySpending).map(([name, amount]) => ({
-      name,
-      amount
-    })).sort((a, b) => b.amount - a.amount);
-
-    // Calculate weekly expenses
-    const weeklyTransactions = transactions.filter(t => 
-      t.type === 'expense' && t.date >= startOfWeek
-    );
-    
-    const weeklyExpensesByDay = {};
-    weeklyTransactions.forEach(t => {
-      const day = t.date.toLocaleDateString('en-US', { weekday: 'short' });
-      weeklyExpensesByDay[day] = (weeklyExpensesByDay[day] || 0) + t.amount;
-    });
-
-    const weeklyExpensesArray = Object.entries(weeklyExpensesByDay).map(([day, amount]) => ({
-      day,
-      amount
-    }));
+      .reduce((sum, t) => sum + t.amount, 0);
 
     // Calculate total savings
     const totalSavings = savingsGoals.reduce((sum, goal) => sum + goal.currentAmount, 0);
@@ -688,17 +1126,55 @@ app.get('/api/dashboard/summary', verifyToken, async (req, res) => {
         category: t.category,
         description: t.description,
         date: t.date,
-        paymentMethod: t.paymentMethod
+        paymentMethod: t.paymentMethod,
+        mood: t.mood
       }));
 
     // Calculate budget data
-    const monthlyBudget = budget?.monthlyBudget || 0;
+    const monthlyBudget = budget?.totalBudget || 0;
     const budgetUsedPercentage = monthlyBudget > 0 ? 
       Math.min((monthlyExpenses / monthlyBudget) * 100, 100) : 0;
     const budgetLeft = Math.max(0, monthlyBudget - monthlyExpenses);
 
-    // Calculate total balance (income - expenses + savings)
+    // Calculate total balance
     const totalBalance = monthlyIncome - monthlyExpenses + totalSavings;
+
+    // Category spending (current month)
+    const categoryMap = new Map();
+    monthlyTransactions
+      .filter(t => t.type === 'expense')
+      .forEach((t) => {
+        const key = t.category || 'Other';
+        const current = categoryMap.get(key) || 0;
+        categoryMap.set(key, current + t.amount);
+      });
+
+    const categorySpending = Array.from(categoryMap.entries())
+      .map(([name, amount]) => ({ name, amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    // Weekly expenses (last 7 days)
+    const dayBuckets = [];
+    for (let i = 6; i >= 0; i -= 1) {
+      const day = new Date();
+      day.setHours(0, 0, 0, 0);
+      day.setDate(day.getDate() - i);
+      const nextDay = new Date(day);
+      nextDay.setDate(day.getDate() + 1);
+
+      const amount = transactions
+        .filter(t => t.type === 'expense' && t.date >= day && t.date < nextDay)
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      dayBuckets.push({
+        day: day.toLocaleDateString('en-US', { weekday: 'short' }),
+        amount
+      });
+    }
+
+    const expenseTrend = prevMonthExpenses > 0
+      ? ((monthlyExpenses - prevMonthExpenses) / prevMonthExpenses) * 100
+      : (monthlyExpenses > 0 ? 100 : 0);
 
     res.json({
       success: true,
@@ -718,8 +1194,9 @@ app.get('/api/dashboard/summary', verifyToken, async (req, res) => {
         budgetUsedPercentage
       },
       recentTransactions,
-      categorySpending: categorySpendingArray,
-      weeklyExpenses: weeklyExpensesArray,
+      categorySpending,
+      weeklyExpenses: dayBuckets,
+      expenseTrend: Number(expenseTrend.toFixed(2)),
       savingsGoals: savingsGoals.map(g => ({
         id: g._id,
         name: g.name,
@@ -727,7 +1204,9 @@ app.get('/api/dashboard/summary', verifyToken, async (req, res) => {
         currentAmount: g.currentAmount,
         targetDate: g.targetDate,
         category: g.category,
-        progress: g.targetAmount > 0 ? (g.currentAmount / g.targetAmount) * 100 : 0
+        priority: g.priority,
+        progress: g.progress,
+        monthlyContribution: g.monthlyContribution
       })),
       notifications: 0
     });
@@ -741,236 +1220,6 @@ app.get('/api/dashboard/summary', verifyToken, async (req, res) => {
   }
 });
 
-// Add Transaction
-app.post('/api/transactions', verifyToken, async (req, res) => {
-  try {
-    const userId = req.userId;
-    const { type, amount, category, description, paymentMethod } = req.body;
-
-    if (!type || !amount || !category) {
-      return res.status(400).json({
-        success: false,
-        message: 'Type, amount, and category are required'
-      });
-    }
-
-    const transaction = new Transaction({
-      userId,
-      type,
-      amount,
-      category,
-      description,
-      paymentMethod: paymentMethod || 'cash'
-    });
-
-    await transaction.save();
-
-    res.status(201).json({
-      success: true,
-      message: 'Transaction added successfully',
-      transaction: {
-        id: transaction._id,
-        type: transaction.type,
-        amount: transaction.amount,
-        category: transaction.category,
-        description: transaction.description,
-        date: transaction.date,
-        paymentMethod: transaction.paymentMethod
-      }
-    });
-
-  } catch (error) {
-    console.error('Add transaction error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error adding transaction' 
-    });
-  }
-});
-
-// Get all transactions
-app.get('/api/transactions', verifyToken, async (req, res) => {
-  try {
-    const userId = req.userId;
-    const transactions = await Transaction.find({ userId })
-      .sort({ date: -1 });
-
-    res.json({
-      success: true,
-      transactions: transactions.map(t => ({
-        id: t._id,
-        type: t.type,
-        amount: t.amount,
-        category: t.category,
-        description: t.description,
-        date: t.date,
-        paymentMethod: t.paymentMethod
-      }))
-    });
-
-  } catch (error) {
-    console.error('Get transactions error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching transactions' 
-    });
-  }
-});
-
-// Set Budget
-app.post('/api/budget', verifyToken, async (req, res) => {
-  try {
-    const userId = req.userId;
-    const { monthlyBudget, categories } = req.body;
-
-    if (!monthlyBudget || monthlyBudget < 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Valid monthly budget is required'
-      });
-    }
-
-    let budget = await Budget.findOne({ userId });
-
-    if (budget) {
-      budget.monthlyBudget = monthlyBudget;
-      budget.categories = categories || [];
-      budget.updatedAt = new Date();
-    } else {
-      budget = new Budget({
-        userId,
-        monthlyBudget,
-        categories: categories || []
-      });
-    }
-
-    await budget.save();
-
-    res.json({
-      success: true,
-      message: 'Budget updated successfully',
-      budget: {
-        monthlyBudget: budget.monthlyBudget,
-        categories: budget.categories,
-        updatedAt: budget.updatedAt
-      }
-    });
-
-  } catch (error) {
-    console.error('Set budget error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error setting budget' 
-    });
-  }
-});
-
-// Get Budget
-app.get('/api/budget', verifyToken, async (req, res) => {
-  try {
-    const userId = req.userId;
-    const budget = await Budget.findOne({ userId });
-
-    res.json({
-      success: true,
-      budget: budget || {
-        monthlyBudget: 0,
-        categories: [],
-        updatedAt: null
-      }
-    });
-
-  } catch (error) {
-    console.error('Get budget error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching budget' 
-    });
-  }
-});
-
-// Add Savings Goal
-app.post('/api/savings', verifyToken, async (req, res) => {
-  try {
-    const userId = req.userId;
-    const { name, targetAmount, targetDate, category } = req.body;
-
-    if (!name || !targetAmount || !targetDate) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name, target amount, and target date are required'
-      });
-    }
-
-    if (targetAmount <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Target amount must be greater than 0'
-      });
-    }
-
-    const savingsGoal = new SavingsGoal({
-      userId,
-      name,
-      targetAmount,
-      targetDate,
-      category: category || 'other',
-      currentAmount: 0,
-      completed: false
-    });
-
-    await savingsGoal.save();
-
-    res.status(201).json({
-      success: true,
-      message: 'Savings goal created successfully',
-      savingsGoal: {
-        id: savingsGoal._id,
-        name: savingsGoal.name,
-        targetAmount: savingsGoal.targetAmount,
-        currentAmount: savingsGoal.currentAmount,
-        targetDate: savingsGoal.targetDate,
-        category: savingsGoal.category
-      }
-    });
-
-  } catch (error) {
-    console.error('Add savings goal error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error creating savings goal' 
-    });
-  }
-});
-
-// Get Savings Goals
-app.get('/api/savings', verifyToken, async (req, res) => {
-  try {
-    const userId = req.userId;
-    const savingsGoals = await SavingsGoal.find({ userId, completed: false });
-
-    res.json({
-      success: true,
-      savingsGoals: savingsGoals.map(g => ({
-        id: g._id,
-        name: g.name,
-        targetAmount: g.targetAmount,
-        currentAmount: g.currentAmount,
-        targetDate: g.targetDate,
-        category: g.category,
-        progress: g.targetAmount > 0 ? (g.currentAmount / g.targetAmount) * 100 : 0
-      }))
-    });
-
-  } catch (error) {
-    console.error('Get savings goals error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching savings goals' 
-    });
-  }
-});
-
 // ==================== UTILITY ROUTES ====================
 
 // Health check route
@@ -980,7 +1229,34 @@ app.get('/api/health', (req, res) => {
     status: 'OK',
     timestamp: new Date().toISOString(),
     database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    endpoints: {
+      auth: {
+        register: 'POST /api/auth/register',
+        login: 'POST /api/auth/login',
+        logout: 'POST /api/auth/logout',
+        profile: 'GET /api/auth/me'
+      },
+      budget: {
+        set: 'POST /api/budget',
+        get: 'GET /api/budget',
+        getCurrent: 'GET /api/budget/current',
+        copyPrevious: 'POST /api/budget/copy-previous',
+        summary: 'GET /api/budget/stats/summary'
+      },
+      savings_goals: {
+        create: 'POST /api/savings-goals',
+        list: 'GET /api/savings-goals'
+      },
+      transactions: {
+        add: 'POST /api/transactions',
+        list: 'GET /api/transactions'
+      },
+      dashboard: {
+        summary: 'GET /api/dashboard/summary'
+      }
+    }
   });
 });
 
@@ -988,7 +1264,7 @@ app.get('/api/health', (req, res) => {
 app.get('/', (req, res) => {
   res.json({ 
     message: 'WalletWise Backend API is running',
-    version: '3.0.0',
+    version: '1.0.0',
     database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
     endpoints: {
       auth: {
@@ -996,20 +1272,26 @@ app.get('/', (req, res) => {
         login: 'POST /api/auth/login',
         profile: 'GET /api/auth/me (requires token)'
       },
+      budget: {
+        set: 'POST /api/budget (requires token)',
+        get: 'GET /api/budget (requires token)',
+        getCurrent: 'GET /api/budget/current (requires token)',
+        copyPrevious: 'POST /api/budget/copy-previous (requires token)',
+        summary: 'GET /api/budget/stats/summary (requires token)'
+      },
+      savings_goals: {
+        create: 'POST /api/savings-goals (requires token)',
+        list: 'GET /api/savings-goals (requires token)'
+      },
+      transactions: {
+        add: 'POST /api/transactions (requires token)',
+        list: 'GET /api/transactions (requires token)'
+      },
       dashboard: {
-        summary: 'GET /api/dashboard/summary (requires token)',
-        transactions: 'GET /api/transactions (requires token)',
-        addTransaction: 'POST /api/transactions (requires token)',
-        budget: 'GET /api/budget (requires token)',
-        setBudget: 'POST /api/budget (requires token)',
-        savings: 'GET /api/savings (requires token)',
-        addSavings: 'POST /api/savings (requires token)'
+        summary: 'GET /api/dashboard/summary (requires token)'
       },
       utility: {
-        health: 'GET /api/health',
-        checkAvailability: 'GET /api/auth/check-availability',
-        debugUsers: 'GET /api/debug/users',
-        clearUsers: 'DELETE /api/debug/clear-users (testing)'
+        health: 'GET /api/health'
       }
     }
   });
@@ -1020,33 +1302,57 @@ app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
     message: 'Endpoint not found',
-    requestedUrl: req.originalUrl
+    requestedUrl: req.originalUrl,
+    timestamp: new Date().toISOString()
   });
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Server error:', err.stack);
-  res.status(500).json({
-    success: false,
-    message: 'Internal server error'
-  });
-});
-
+// ==================== START SERVER ====================
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`\n🚀 Server running on port ${PORT}`);
   console.log(`🔗 API Base URL: http://localhost:${PORT}`);
-  console.log(`🔒 JWT Secret: ${process.env.JWT_SECRET ? 'Set' : 'Using default (not for production!)'}`);
-  console.log(`🌐 CORS enabled for: http://localhost:3000`);
-  console.log(`\n📋 NEW DASHBOARD ENDPOINTS ADDED:`);
-  console.log(`  GET  /api/dashboard/summary  - Dashboard summary data (requires token)`);
-  console.log(`  POST /api/transactions       - Add transaction (requires token)`);
-  console.log(`  GET  /api/transactions       - Get all transactions (requires token)`);
-  console.log(`  POST /api/budget             - Set monthly budget (requires token)`);
-  console.log(`  GET  /api/budget             - Get budget (requires token)`);
-  console.log(`  POST /api/savings            - Add savings goal (requires token)`);
-  console.log(`  GET  /api/savings            - Get savings goals (requires token)`);
-  console.log('\n📊 Waiting for requests...');
+  console.log(`🌐 CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+  console.log(`🔐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  
+  console.log(`\n📋 AVAILABLE ENDPOINTS:`);
+  console.log(`\n🔐 AUTH:`);
+  console.log(`  POST /api/auth/register       - Register user`);
+  console.log(`  POST /api/auth/login          - Login user`);
+  console.log(`  GET  /api/auth/me             - Get current user (requires token)`);
+  
+  console.log(`\n💰 BUDGET:`);
+  console.log(`  POST /api/budget              - Set/update budget (requires token)`);
+  console.log(`  GET  /api/budget              - Get all budgets (requires token)`);
+  console.log(`  GET  /api/budget/current      - Get current month budget (requires token)`);
+  console.log(`  POST /api/budget/copy-previous - Copy previous month budget (requires token)`);
+  console.log(`  GET  /api/budget/stats/summary - Budget statistics (requires token)`);
+  console.log(`  PUT  /api/budget/:id          - Update budget (requires token)`);
+  console.log(`  DELETE /api/budget/:id        - Delete budget (requires token)`);
+  
+  console.log(`\n🎯 SAVINGS GOALS:`);
+  console.log(`  POST /api/savings-goals       - Create savings goal (requires token)`);
+  console.log(`  GET  /api/savings-goals       - List savings goals (requires token)`);
+  
+  console.log(`\n💳 TRANSACTIONS:`);
+  console.log(`  POST /api/transactions        - Add transaction (requires token)`);
+  console.log(`  GET  /api/transactions        - List transactions (requires token)`);
+  
+  console.log(`\n📊 DASHBOARD:`);
+  console.log(`  GET  /api/dashboard/summary   - Dashboard data (requires token)`);
+  
+  console.log(`\n🔧 UTILITY:`);
+  console.log(`  GET  /api/health              - Health check`);
+  console.log(`  GET  /                        - API documentation`);
+  
+  console.log(`\n💡 IMPORTANT: Budget endpoints now include notifications!`);
+  console.log('   Use this format for budget data:');
+  console.log('   {');
+  console.log('     "totalBudget": 15000,');
+  console.log('     "categories": [');
+  console.log('       {"name": "Food", "amount": 4500, "percentage": 30, "color": "#FF6B6B"}');
+  console.log('     ]');
+  console.log('   }');
+  console.log('📊 Waiting for requests...');
 });

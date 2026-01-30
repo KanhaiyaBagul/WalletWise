@@ -1,28 +1,34 @@
-// src/components/AddIncome.jsx
 import React, { useState } from 'react';
-import './AddExpense.css'; // Reuse the same CSS
+import './AddExpense.css'; // Reusing the clean CSS
 
 const AddIncome = ({ isOpen, onClose, onAddIncome }) => {
   const [formData, setFormData] = useState({
     amount: '',
     category: 'pocket_money',
     date: new Date().toISOString().split('T')[0],
-    description: ''
+    description: '',
+    sourceNature: 'earned' // New behavioral component
   });
+  const [loading, setLoading] = useState(false);
 
-  // Income Categories Only
   const incomeCategories = [
-    { value: 'pocket_money', label: 'Pocket Money', icon: '👛' },
-    { value: 'internship', label: 'Internship', icon: '💼' },
-    { value: 'scholarship', label: 'Scholarship', icon: '🎓' },
-    { value: 'freelancing', label: 'Freelancing', icon: '💻' },
-    { value: 'part_time_job', label: 'Part-time Job', icon: '🏢' },
-    { value: 'gift', label: 'Gift', icon: '🎁' },
-    { value: 'investment', label: 'Investment Returns', icon: '📈' },
-    { value: 'other', label: 'Other Income', icon: '💰' }
+    { value: 'pocket_money', label: 'Pocket Money' },
+    { value: 'salary', label: 'Salary / Internship' },
+    { value: 'freelance', label: 'Freelancing' },
+    { value: 'gift', label: 'Gift / Windfall' },
+    { value: 'investment', label: 'Investments' },
+    { value: 'other', label: 'Other' }
   ];
 
-  const handleSubmit = (e) => {
+  // Behavioral Trace: How the user perceives this money
+  const sourceNatureOptions = [
+    { value: 'earned', label: 'Hard-Earned' },
+    { value: 'planned', label: 'Planned / Regular' },
+    { value: 'windfall', label: 'Unexpected / Gift' },
+    { value: 'passive', label: 'Passive / Returns' }
+  ];
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!formData.amount || isNaN(formData.amount) || Number(formData.amount) <= 0) {
@@ -31,40 +37,36 @@ const AddIncome = ({ isOpen, onClose, onAddIncome }) => {
     }
 
     const transactionData = {
-      type: 'income', // Fixed as income
+      type: 'income',
       amount: Number(formData.amount),
       category: formData.category,
       description: formData.description || '',
-      paymentMethod: 'cash', // Default for income
-      date: formData.date
+      date: formData.date,
+      sourceNature: formData.sourceNature // Behavioral context
     };
 
-    console.log('Sending income data:', transactionData);
-    onAddIncome(transactionData);
-    onClose();
-    
-    // Reset form
-    setFormData({
-      amount: '',
-      category: 'pocket_money',
-      date: new Date().toISOString().split('T')[0],
-      description: ''
-    });
+    setLoading(true);
+    try {
+      await onAddIncome(transactionData);
+      onClose();
+      
+      setFormData({
+        amount: '',
+        category: 'pocket_money',
+        date: new Date().toISOString().split('T')[0],
+        description: '',
+        sourceNature: 'earned'
+      });
+    } catch (err) {
+      console.error('Error adding income:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleCategoryClick = (categoryValue) => {
-    setFormData(prev => ({
-      ...prev,
-      category: categoryValue
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   if (!isOpen) return null;
@@ -72,24 +74,19 @@ const AddIncome = ({ isOpen, onClose, onAddIncome }) => {
   return (
     <div className="expense-modal-overlay">
       <div className="expense-modal-content">
-        <div className="expense-modal-header income-header">
-          <div className="header-left">
-            <i className="fas fa-hand-holding-dollar"></i>
-            <h2>Add Income 💰</h2>
-          </div>
-          <button className="close-expense-btn" onClick={onClose}>
-            <i className="fas fa-times"></i>
+        <div className="expense-modal-header" style={{ background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' }}>
+          <h2 style={{ color: '#166534' }}>Add Income</h2>
+          <button className="close-expense-btn" onClick={onClose} disabled={loading} style={{ color: '#166534', borderColor: '#bbf7d0' }}>
+            Close
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
           {/* Amount Field */}
           <div className="expense-form-group">
-            <label htmlFor="amount">
-              <i className="fas fa-rupee-sign"></i> Amount *
-            </label>
+            <label htmlFor="amount">Income Amount</label>
             <div className="expense-amount-input">
-              <span className="expense-currency">₹</span>
+              <span className="currency-label" style={{ color: '#16a34a' }}>₹</span>
               <input
                 type="number"
                 id="amount"
@@ -97,70 +94,92 @@ const AddIncome = ({ isOpen, onClose, onAddIncome }) => {
                 value={formData.amount}
                 onChange={handleChange}
                 placeholder="0.00"
-                min="0"
-                step="0.01"
+                style={{ borderColor: '#86efac', color: '#16a34a' }}
                 required
                 autoFocus
+                disabled={loading}
               />
             </div>
           </div>
 
-          {/* Category Selection */}
+          {/* Behavioral Component: Source Nature */}
           <div className="expense-form-group">
-            <label>
-              <i className="fas fa-tags"></i> Category *
-            </label>
-            <div className="category-grid">
-              {incomeCategories.map(category => (
+            <label>Nature of this Income (Behavioral Trace)</label>
+            <div className="selection-grid">
+              {sourceNatureOptions.map(option => (
                 <button
-                  key={category.value}
+                  key={option.value}
                   type="button"
-                  className={`category-btn ${formData.category === category.value ? 'selected' : ''}`}
-                  onClick={() => handleCategoryClick(category.value)}
+                  className={`selection-btn ${formData.sourceNature === option.value ? 'active' : ''}`}
+                  style={formData.sourceNature === option.value ? { background: '#dcfce7', borderColor: '#22c55e', color: '#166534' } : {}}
+                  onClick={() => setFormData(prev => ({ ...prev, sourceNature: option.value }))}
+                  disabled={loading}
                 >
-                  <span className="category-icon">{category.icon}</span>
-                  <span className="category-label">{category.label}</span>
+                  {option.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Date Field */}
+          {/* Category Selection */}
           <div className="expense-form-group">
-            <label htmlFor="date">
-              <i className="fas fa-calendar-day"></i> Date
-            </label>
-            <input
-              type="date"
-              id="date"
-              name="date"
-              value={formData.date}
-              onChange={handleChange}
-            />
+            <label>Income Category</label>
+            <div className="selection-grid">
+              {incomeCategories.map(cat => (
+                <button
+                  key={cat.value}
+                  type="button"
+                  className={`selection-btn ${formData.category === cat.value ? 'active' : ''}`}
+                  style={formData.category === cat.value ? { background: '#dcfce7', borderColor: '#22c55e', color: '#166534' } : {}}
+                  onClick={() => setFormData(prev => ({ ...prev, category: cat.value }))}
+                  disabled={loading}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-row-flex">
+            <div className="expense-form-group flex-1">
+              <label htmlFor="date">Date Received</label>
+              <input
+                type="date"
+                id="date"
+                name="date"
+                value={formData.date}
+                onChange={handleChange}
+                disabled={loading}
+              />
+            </div>
           </div>
 
           {/* Description */}
           <div className="expense-form-group">
-            <label htmlFor="description">
-              <i className="fas fa-sticky-note"></i> Description (Optional)
-            </label>
+            <label htmlFor="description">Notes (Optional)</label>
             <textarea
               id="description"
               name="description"
               value={formData.description}
               onChange={handleChange}
-              placeholder="Add any additional notes about this income..."
-              rows="3"
+              placeholder="Source details or upcoming plans for this money..."
+              rows="2"
+              disabled={loading}
             />
           </div>
 
           {/* Form Actions */}
           <div className="expense-form-actions">
-            <button type="button" className="expense-btn-cancel" onClick={onClose}>
-              <i className="fas fa-times"></i> Cancel
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>
+              Cancel
             </button>
-            <button type="submit" className="expense-btn-submit income-btn">
-              <i className="fas fa-hand-holding-dollar"></i> Add Income
+            <button 
+              type="submit" 
+              className="btn-primary" 
+              disabled={loading}
+              style={{ background: '#16a34a' }}
+            >
+              {loading ? "Processing..." : "Save Income"}
             </button>
           </div>
         </form>

@@ -522,3 +522,143 @@
     font-size: 2.5rem;
   }
 }
+/* Add these styles to your existing dashboard.css */
+
+/* Behaviour Analysis Button */
+.behaviour-analysis-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  margin-right: 15px;
+}
+
+.behaviour-analysis-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.insights-badge {
+  background: #ef4444;
+  color: white;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 6px;
+}
+
+/* Behaviour Insights Card */
+.behaviour-insights-card {
+  border-left: 4px solid #8B5CF6;
+}
+
+.insights-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.insight-preview-item {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.insight-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.severity-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.severity-badge.high {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.severity-badge.medium {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.severity-badge.low {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.insight-title {
+  font-weight: 600;
+  color: #374151;
+}
+
+.insight-description {
+  color: #6b7280;
+  font-size: 14px;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.insight-action-btn {
+  background: #8B5CF6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.insight-action-btn:hover {
+  background: #7c3aed;
+}
+
+/* Behaviour Action Button */
+.action-btn.behaviour-btn {
+  background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%);
+  color: white;
+}
+
+.action-btn.behaviour-btn:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+}
+
+/* Back to Dashboard Button */
+.back-to-dashboard-btn {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-right: 16px;
+}
+
+.back-to-dashboard-btn:hover {
+  background: #2563eb;
+}
+
+/* Quick Actions Card Adjustment */
+.quick-actions-card .action-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}

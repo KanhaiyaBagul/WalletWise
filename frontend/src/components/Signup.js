@@ -1,9 +1,17 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { FaUser, FaLock, FaEnvelope, FaIdCard, FaUniversity, FaGraduationCap, FaPhone } from 'react-icons/fa';
+import {
+  FaUser,
+  FaLock,
+  FaEnvelope,
+  FaIdCard,
+  FaUniversity,
+  FaGraduationCap,
+  FaPhone
+} from 'react-icons/fa';
 import './Auth.css';
 
 const Signup = () => {
@@ -17,119 +25,13 @@ const Signup = () => {
     department: '',
     year: '1st'
   });
-  
+
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Validation
-    if (password !== confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-    
-    if (password.length < 6) {
-      toast.error('Password must be at least 6 characters');
-      return;
-    }
-    
-    if (!studentId.trim()) {
-      toast.error('Student ID is required');
-      return;
-    }
-    
-    if (!fullName.trim()) {
-      toast.error('Full name is required');
-      return;
-    }
-    
-    setLoading(true);
-    
-    try {
-      // Use the full backend URL
-      const API_URL = 'http://localhost:5000/api/auth/register';
-      
-      const response = await axios.post(
-        API_URL,
-        {
-          name: fullName,
-          email: email.toLowerCase().trim(),
-          password: password,
-          studentId: studentId.trim(),
-          phoneNumber: phoneNumber.trim(),
-          department: department.trim(),
-          year: year
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          timeout: 10000 // 10 second timeout
-        }
-      );
-
-      console.log('Registration response:', response.data);
-      
-      if (response.data.success) {
-        // Store complete user data
-        localStorage.setItem('userInfo', JSON.stringify({
-          ...response.data.user,
-          token: response.data.token
-        }));
-        
-        toast.success('Registration successful! Redirecting...');
-        
-        // Redirect after delay
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 1500);
-      } else {
-        toast.error(response.data.message || 'Registration failed');
-      }
-      
-    } catch (error) {
-      console.error('Registration error:', error);
-      
-      let errorMessage = 'Registration failed. Please try again.';
-      
-      if (error.response) {
-        // Server responded with error
-        const { status, data } = error.response;
-        console.error(`Server error ${status}:`, data);
-        
-        if (status === 400) {
-          errorMessage = data.message || 'Please check your input fields';
-        } else if (status === 409) {
-          errorMessage = 'User already exists. Please login instead.';
-        } else if (status === 500) {
-          errorMessage = 'Server error. Please try again later.';
-        }
-      } else if (error.request) {
-        // Request made but no response
-        console.error('No response from server. Is backend running?');
-        errorMessage = 'Cannot connect to server. Please make sure the backend is running on http://localhost:5000';
-      } else {
-        // Other errors
-        console.error('Error:', error.message);
-        if (error.message.includes('Network Error')) {
-          errorMessage = 'Network error. Check your connection and CORS settings.';
-        }
-      }
-      
-      toast.error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { signup } = useAuth();
 
   const years = ['1st', '2nd', '3rd', '4th', '5th'];
-  
+
   const {
     studentId,
     email,
@@ -141,10 +43,111 @@ const Signup = () => {
     year
   } = formData;
 
+  const handleChange = (e) => {
+    setFormData((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // Basic validations
+    if (password !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    if (!studentId.trim()) {
+      toast.error('Student ID is required');
+      return;
+    }
+
+    if (!fullName.trim()) {
+      toast.error('Full name is required');
+      return;
+    }
+
+    if (!email.trim()) {
+      toast.error('Email is required');
+      return;
+    }
+
+    if (!department.trim()) {
+      toast.error('Department is required');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const data = await signup({
+        studentId: studentId.trim(),
+        email: email.toLowerCase().trim(),
+        password: password,
+        fullName: fullName.trim(),
+        phoneNumber: phoneNumber.trim(),
+        department: department.trim(),
+        year: year
+      });
+
+      if (data?.success) {
+        toast.success('Registration successful! Redirecting...');
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1500);
+      } else {
+        toast.error(data?.message || 'Registration failed');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+
+      let errorMessage = 'Registration failed. Please try again.';
+
+      if (error.response) {
+        const { status, data } = error.response;
+        console.error(`Server error ${status}:`, data);
+
+        if (status === 400) {
+          // Handle validation errors
+          if (data.errors && data.errors.length > 0) {
+            errorMessage = data.errors[0].msg || 'Please check your input fields';
+          } else {
+            errorMessage = data.message || 'Please check your input fields';
+          }
+        } else if (status === 409 || status === 422) {
+          errorMessage = data.message || 'User already exists with this email or student ID';
+        } else if (status === 500) {
+          errorMessage = 'Server error. Please try again later.';
+        }
+      } else if (error.request) {
+        console.error('No response from server. Is backend running?');
+        errorMessage =
+          'Cannot connect to server. Please make sure the backend is running on http://localhost:5000';
+      } else {
+        console.error('Error:', error.message);
+        if (error.message.includes('Network Error')) {
+          errorMessage =
+            'Network error. Check your connection and CORS settings.';
+        }
+      }
+
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="auth-container">
-      <ToastContainer 
-        position="top-right" 
+      <ToastContainer
+        position="top-right"
         autoClose={5000}
         hideProgressBar={false}
         newestOnTop
@@ -154,18 +157,18 @@ const Signup = () => {
         draggable
         pauseOnHover
       />
-      
+
       <div className="auth-card">
         <div className="auth-header">
           <h1>WalletWise</h1>
           <p className="subtitle">Student Registration</p>
           <p className="backend-status">
-            Backend: <span className="status-indicator">http://localhost:5000</span>
+            Backend:{' '}
+            <span className="status-indicator">http://localhost:5000</span>
           </p>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="auth-form">
-          {/* ... rest of your form JSX remains the same ... */}
           <div className="form-row">
             <div className="form-group">
               <label htmlFor="studentId">
@@ -183,7 +186,7 @@ const Signup = () => {
                 disabled={loading}
               />
             </div>
-            
+
             <div className="form-group">
               <label htmlFor="fullName">
                 <FaUser className="input-icon" />
@@ -201,7 +204,7 @@ const Signup = () => {
               />
             </div>
           </div>
-          
+
           <div className="form-group">
             <label htmlFor="email">
               <FaEnvelope className="input-icon" />
@@ -218,7 +221,7 @@ const Signup = () => {
               disabled={loading}
             />
           </div>
-          
+
           <div className="form-row">
             <div className="form-group">
               <label htmlFor="password">
@@ -236,7 +239,7 @@ const Signup = () => {
                 disabled={loading}
               />
             </div>
-            
+
             <div className="form-group">
               <label htmlFor="confirmPassword">
                 <FaLock className="input-icon" />
@@ -254,7 +257,7 @@ const Signup = () => {
               />
             </div>
           </div>
-          
+
           <div className="form-row">
             <div className="form-group">
               <label htmlFor="phoneNumber">
@@ -271,7 +274,7 @@ const Signup = () => {
                 disabled={loading}
               />
             </div>
-            
+
             <div className="form-group">
               <label htmlFor="year">
                 <FaGraduationCap className="input-icon" />
@@ -285,13 +288,15 @@ const Signup = () => {
                 required
                 disabled={loading}
               >
-                {years.map(y => (
-                  <option key={y} value={y}>{y} Year</option>
+                {years.map((y) => (
+                  <option key={y} value={y}>
+                    {y} Year
+                  </option>
                 ))}
               </select>
             </div>
           </div>
-          
+
           <div className="form-group">
             <label htmlFor="department">
               <FaUniversity className="input-icon" />
@@ -308,16 +313,17 @@ const Signup = () => {
               disabled={loading}
             />
           </div>
-          
+
           <div className="terms-agreement">
             <label>
               <input type="checkbox" required disabled={loading} />
-              I agree to the <Link to="/terms">Terms & Conditions</Link> and <Link to="/privacy">Privacy Policy</Link>
+              I agree to the <Link to="/terms">Terms & Conditions</Link> and{' '}
+              <Link to="/privacy">Privacy Policy</Link>
             </label>
           </div>
-          
-          <button 
-            type="submit" 
+
+          <button
+            type="submit"
             className="auth-btn"
             disabled={loading}
           >
@@ -330,19 +336,35 @@ const Signup = () => {
               'Create Account'
             )}
           </button>
+
+          <div className="auth-divider">
+            <span>OR</span>
+          </div>
+
+          <button
+            type="button"
+            className="demo-btn google-btn"
+            onClick={() => {
+              const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+              window.location.href = `${apiBase}/auth/google`;
+            }}
+          >
+            Continue with Google
+          </button>
         </form>
-        
+
         <div className="auth-footer">
           <p>
-            Already have an account? 
-            <Link to="/login" className="auth-link"> Login</Link>
+            Already have an account?
+            <Link to="/login" className="auth-link">
+              {' '}
+              Login
+            </Link>
           </p>
-          <p className="debug-info">
-            Backend: http://localhost:5000
-          </p>
+          <p className="debug-info">Backend: http://localhost:5000</p>
         </div>
       </div>
-      
+
       <div className="auth-features">
         <h3>Student Benefits</h3>
         <ul>

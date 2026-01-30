@@ -1,10 +1,12 @@
 // src/pages/SetBudget.jsx
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
+import api from '../api/client';
 import './SetBudget.css';
 
-const SetBudget = ({ isOpen, onClose, currentBudget = 2500, onSetBudget }) => {
+const SetBudget = ({ isOpen, onClose, onSetBudget }) => {
   const [formData, setFormData] = useState({
-    totalBudget: currentBudget,
+    totalBudget: '',
     categories: [
       { name: 'Food', amount: 0, percentage: 0, color: '#FF6B6B' },
       { name: 'Transport', amount: 0, percentage: 0, color: '#4ECDC4' },
@@ -16,10 +18,32 @@ const SetBudget = ({ isOpen, onClose, currentBudget = 2500, onSetBudget }) => {
   });
 
   const [activeCategory, setActiveCategory] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  // Initialize percentages based on total budget
+  // Load current budget when modal opens
   useEffect(() => {
-    const total = formData.totalBudget;
+    if (isOpen) {
+      // Reset form when opening
+      setFormData({
+        totalBudget: '',
+        categories: [
+          { name: 'Food', amount: 0, percentage: 0, color: '#FF6B6B' },
+          { name: 'Transport', amount: 0, percentage: 0, color: '#4ECDC4' },
+          { name: 'Entertainment', amount: 0, percentage: 0, color: '#FFD166' },
+          { name: 'Shopping', amount: 0, percentage: 0, color: '#06D6A0' },
+          { name: 'Education', amount: 0, percentage: 0, color: '#118AB2' },
+          { name: 'Other', amount: 0, percentage: 0, color: '#7209B7' }
+        ]
+      });
+      setActiveCategory(0);
+      setError('');
+    }
+  }, [isOpen]);
+
+  // Update amounts when total budget changes
+  useEffect(() => {
+    const total = Number(formData.totalBudget) || 0;
     if (total > 0) {
       const updatedCategories = formData.categories.map(cat => ({
         ...cat,
@@ -32,15 +56,15 @@ const SetBudget = ({ isOpen, onClose, currentBudget = 2500, onSetBudget }) => {
 
   const handleTotalBudgetChange = (e) => {
     const value = e.target.value;
-    const numValue = value === '' ? 0 : parseInt(value) || 0;
+    const numValue = value === '' ? '' : parseInt(value) || 0;
     
     setFormData(prev => ({
       ...prev,
       totalBudget: numValue,
       categories: prev.categories.map(cat => ({
         ...cat,
-        amount: Math.round((cat.percentage / 100) * numValue),
-        amountStr: Math.round((cat.percentage / 100) * numValue).toString()
+        amount: Math.round((cat.percentage / 100) * (numValue || 0)),
+        amountStr: Math.round((cat.percentage / 100) * (numValue || 0)).toString()
       }))
     }));
   };
@@ -54,8 +78,8 @@ const SetBudget = ({ isOpen, onClose, currentBudget = 2500, onSetBudget }) => {
     updatedCategories[index] = {
       ...updatedCategories[index],
       percentage: clampedValue,
-      amount: Math.round((clampedValue / 100) * formData.totalBudget),
-      amountStr: Math.round((clampedValue / 100) * formData.totalBudget).toString()
+      amount: Math.round((clampedValue / 100) * (formData.totalBudget || 0)),
+      amountStr: Math.round((clampedValue / 100) * (formData.totalBudget || 0)).toString()
     };
     
     // Recalculate other categories to maintain total of 100%
@@ -73,8 +97,8 @@ const SetBudget = ({ isOpen, onClose, currentBudget = 2500, onSetBudget }) => {
           updatedCategories[originalIndex] = {
             ...updatedCategories[originalIndex],
             percentage: newPercentage,
-            amount: Math.round((newPercentage / 100) * formData.totalBudget),
-            amountStr: Math.round((newPercentage / 100) * formData.totalBudget).toString()
+            amount: Math.round((newPercentage / 100) * (formData.totalBudget || 0)),
+            amountStr: Math.round((newPercentage / 100) * (formData.totalBudget || 0)).toString()
           };
         });
       }
@@ -85,11 +109,11 @@ const SetBudget = ({ isOpen, onClose, currentBudget = 2500, onSetBudget }) => {
 
   const handleCategoryAmountChange = (index, value) => {
     const numValue = value === '' ? 0 : parseInt(value) || 0;
-    const maxAmount = formData.totalBudget;
+    const maxAmount = formData.totalBudget || 0;
     const clampedValue = Math.min(Math.max(numValue, 0), maxAmount);
     
-    const percentage = formData.totalBudget > 0 
-      ? Math.round((clampedValue / formData.totalBudget) * 100)
+    const percentage = (formData.totalBudget || 0) > 0 
+      ? Math.round((clampedValue / (formData.totalBudget || 1)) * 100)
       : 0;
     
     const updatedCategories = [...formData.categories];
@@ -105,49 +129,135 @@ const SetBudget = ({ isOpen, onClose, currentBudget = 2500, onSetBudget }) => {
 
   const handleQuickAllocation = (type) => {
     const allocations = {
-      'student': [30, 20, 15, 10, 15, 10], // Food, Transport, Entertainment, Shopping, Education, Other
+      'student': [30, 20, 15, 10, 15, 10],
       'balanced': [25, 15, 10, 15, 20, 15],
       'saver': [40, 25, 5, 5, 20, 5]
     };
     
     const percentages = allocations[type] || allocations['balanced'];
+    const total = Number(formData.totalBudget) || 0;
     const updatedCategories = formData.categories.map((cat, index) => ({
       ...cat,
       percentage: percentages[index],
-      amount: Math.round((percentages[index] / 100) * formData.totalBudget),
-      amountStr: Math.round((percentages[index] / 100) * formData.totalBudget).toString()
+      amount: Math.round((percentages[index] / 100) * total),
+      amountStr: Math.round((percentages[index] / 100) * total).toString()
     }));
     
     setFormData(prev => ({ ...prev, categories: updatedCategories }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
     
-    if (formData.totalBudget <= 0) {
-      alert('Please enter a valid total budget amount');
+    if (!formData.totalBudget || Number(formData.totalBudget) <= 0) {
+      setError('Please enter a valid total budget amount');
+      setLoading(false);
       return;
     }
 
     const totalPercentage = formData.categories.reduce((sum, cat) => sum + cat.percentage, 0);
     if (totalPercentage !== 100) {
-      alert(`Total percentage must be 100%. Currently it's ${totalPercentage}%`);
+      setError(`Total percentage must be 100%. Currently it's ${totalPercentage}%`);
+      setLoading(false);
       return;
     }
 
-    const budgetData = {
-      totalBudget: formData.totalBudget,
-      categories: formData.categories.map(cat => ({
+    const totalBudget = Number(formData.totalBudget);
+    const normalizedCategories = formData.categories.map((cat) => {
+      const percentage = Number(cat.percentage) || 0;
+      const amount = Math.round((percentage / 100) * totalBudget);
+      return {
         name: cat.name,
-        amount: cat.amount,
-        percentage: cat.percentage
-      }))
+        amount,
+        percentage,
+        color: cat.color
+      };
+    });
+
+    const totalAllocated = normalizedCategories.reduce((sum, cat) => sum + cat.amount, 0);
+    const remainder = totalBudget - totalAllocated;
+    if (remainder !== 0 && normalizedCategories.length > 0) {
+      const targetIndex = normalizedCategories.reduce(
+        (bestIdx, cat, idx, arr) => (cat.percentage >= arr[bestIdx].percentage ? idx : bestIdx),
+        0
+      );
+      normalizedCategories[targetIndex] = {
+        ...normalizedCategories[targetIndex],
+        amount: Math.max(0, normalizedCategories[targetIndex].amount + remainder)
+      };
+    }
+
+    const budgetData = {
+      totalBudget,
+      categories: normalizedCategories,
+      month: new Date().toISOString().slice(0, 7)
     };
 
-    onSetBudget(budgetData);
+    try {
+      const response = await api.post('/api/budget', budgetData);
+
+      if (response.data.success) {
+        toast.success(response.data.notification?.message || 'Budget set succesfully.', {
+          style: {
+            background: '#16a34a',
+            color: '#ffffff'
+          },
+          iconTheme: {
+            primary: '#bbf7d0',
+            secondary: '#166534'
+          }
+        });
+        
+        // Call parent callback
+        if (onSetBudget) {
+          onSetBudget(response.data.budget);
+        }
+        
+        // Close modal
+        onClose();
+      } else {
+        throw new Error(response.data.message || 'Failed to set budget');
+      }
+    } catch (err) {
+      console.error('Budget set error:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to set budget. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopyLastMonth = async () => {
+    // This would be handled by the parent component
+    alert('Copy last month feature would be implemented here');
+  };
+
+  const handleOverlayClick = (e) => {
+    if (e.target.classList.contains('budget-modal-overlay')) {
+      onClose();
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      totalBudget: '',
+      categories: [
+        { name: 'Food', amount: 0, percentage: 0, color: '#FF6B6B' },
+        { name: 'Transport', amount: 0, percentage: 0, color: '#4ECDC4' },
+        { name: 'Entertainment', amount: 0, percentage: 0, color: '#FFD166' },
+        { name: 'Shopping', amount: 0, percentage: 0, color: '#06D6A0' },
+        { name: 'Education', amount: 0, percentage: 0, color: '#118AB2' },
+        { name: 'Other', amount: 0, percentage: 0, color: '#7209B7' }
+      ]
+    });
+    setActiveCategory(0);
+    setError('');
+  };
+
+  const handleClose = () => {
+    resetForm();
     onClose();
-    
-    alert(`Budget set successfully! Total: ₹${formData.totalBudget.toLocaleString()}`);
   };
 
   if (!isOpen) return null;
@@ -156,76 +266,89 @@ const SetBudget = ({ isOpen, onClose, currentBudget = 2500, onSetBudget }) => {
   const remainingPercentage = 100 - totalAllocated;
 
   return (
-    <div className="budget-modal-overlay">
-      <div className="budget-modal-content">
+    <div className="budget-modal-overlay" onClick={handleOverlayClick}>
+      <div className="budget-modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="budget-modal-header">
           <div className="header-left">
-            <i className="fas fa-bullseye"></i>
-            <h2>Set Monthly Budget 🎯</h2>
+            <h2>Set Monthly Budget</h2>
           </div>
-          <button className="close-budget-btn" onClick={onClose}>
-            <i className="fas fa-times"></i>
+          <button className="close-budget-btn" onClick={handleClose}>
+            ×
           </button>
         </div>
+
+        {error && (
+          <div className="budget-error-alert">
+            <span>{error}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           {/* Total Budget */}
           <div className="budget-form-group">
             <label htmlFor="totalBudget">
-              <i className="fas fa-wallet"></i> Total Monthly Budget *
+              Total Monthly Budget *
             </label>
             <div className="total-budget-input">
               <span className="budget-currency">₹</span>
               <input
                 type="number"
                 id="totalBudget"
-                name="totalBudget"
                 value={formData.totalBudget}
                 onChange={handleTotalBudgetChange}
                 placeholder="0"
                 min="0"
                 required
                 autoFocus
+                disabled={loading}
               />
             </div>
-            <p className="budget-hint">Enter your total monthly budget amount</p>
           </div>
 
           {/* Quick Allocation Buttons */}
           <div className="budget-form-group">
-            <label>
-              <i className="fas fa-bolt"></i> Quick Allocation Templates
-            </label>
+            <div className="quick-allocation-header">
+              <label>Quick Allocation Templates</label>
+              <button 
+                type="button" 
+                className="copy-last-month-btn"
+                onClick={handleCopyLastMonth}
+                disabled={loading}
+              >
+                Copy Last Month
+              </button>
+            </div>
             <div className="quick-allocation-buttons">
               <button 
                 type="button" 
                 className="allocation-btn student"
                 onClick={() => handleQuickAllocation('student')}
+                disabled={loading}
               >
-                <i className="fas fa-graduation-cap"></i> Student
+                Student
               </button>
               <button 
                 type="button" 
                 className="allocation-btn balanced"
                 onClick={() => handleQuickAllocation('balanced')}
+                disabled={loading}
               >
-                <i className="fas fa-balance-scale"></i> Balanced
+                Balanced
               </button>
               <button 
                 type="button" 
                 className="allocation-btn saver"
                 onClick={() => handleQuickAllocation('saver')}
+                disabled={loading}
               >
-                <i className="fas fa-piggy-bank"></i> Saver
+                Saver
               </button>
             </div>
           </div>
 
           {/* Category Budgets */}
           <div className="budget-form-group">
-            <label>
-              <i className="fas fa-chart-pie"></i> Category-wise Allocation *
-            </label>
+            <label>Category-wise Allocation *</label>
             
             <div className="category-tabs">
               {formData.categories.map((category, index) => (
@@ -235,6 +358,7 @@ const SetBudget = ({ isOpen, onClose, currentBudget = 2500, onSetBudget }) => {
                   className={`category-tab ${activeCategory === index ? 'active' : ''}`}
                   onClick={() => setActiveCategory(index)}
                   style={{ borderLeftColor: category.color }}
+                  disabled={loading}
                 >
                   <span className="tab-name">{category.name}</span>
                   <span className="tab-percentage">{category.percentage}%</span>
@@ -266,6 +390,7 @@ const SetBudget = ({ isOpen, onClose, currentBudget = 2500, onSetBudget }) => {
                       onChange={(e) => handleCategoryPercentageChange(activeCategory, e.target.value)}
                       className="percentage-slider"
                       style={{ '--track-color': formData.categories[activeCategory].color }}
+                      disabled={loading}
                     />
                     <div className="slider-value">
                       <span>{formData.categories[activeCategory].percentage}%</span>
@@ -276,6 +401,7 @@ const SetBudget = ({ isOpen, onClose, currentBudget = 2500, onSetBudget }) => {
                         value={formData.categories[activeCategory].percentage}
                         onChange={(e) => handleCategoryPercentageChange(activeCategory, e.target.value)}
                         className="percentage-input"
+                        disabled={loading}
                       />
                     </div>
                   </div>
@@ -289,13 +415,14 @@ const SetBudget = ({ isOpen, onClose, currentBudget = 2500, onSetBudget }) => {
                     <input
                       type="number"
                       min="0"
-                      max={formData.totalBudget}
+                      max={formData.totalBudget || 0}
                       value={formData.categories[activeCategory].amountStr || formData.categories[activeCategory].amount}
                       onChange={(e) => handleCategoryAmountChange(activeCategory, e.target.value)}
                       className="amount-input"
+                      disabled={loading}
                     />
                     <span className="amount-hint">
-                      Max: ₹{formData.totalBudget.toLocaleString()}
+                      Max: ₹{(formData.totalBudget || 0).toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -319,76 +446,29 @@ const SetBudget = ({ isOpen, onClose, currentBudget = 2500, onSetBudget }) => {
               <div className="summary-item">
                 <span className="summary-label">Total Amount:</span>
                 <span className="summary-value amount">
-                  ₹{formData.totalBudget.toLocaleString()}
+                  ₹{(formData.totalBudget || 0).toLocaleString()}
                 </span>
-              </div>
-            </div>
-
-            {/* Pie Chart Preview */}
-            <div className="pie-chart-preview">
-              <div className="pie-chart" style={{ width: '120px', height: '120px' }}>
-                {formData.categories.map((category, index) => {
-                  if (category.percentage === 0) return null;
-                  
-                  const total = formData.categories.reduce((sum, cat) => sum + cat.percentage, 0);
-                  const percentage = (category.percentage / total) * 100;
-                  const rotation = formData.categories.slice(0, index).reduce((sum, cat) => {
-                    const p = (cat.percentage / total) * 100;
-                    return sum + (p * 3.6);
-                  }, 0);
-                  
-                  return (
-                    <div 
-                      key={category.name}
-                      className="pie-segment"
-                      style={{
-                        backgroundColor: category.color,
-                        transform: `rotate(${rotation}deg)`,
-                        clipPath: `polygon(50% 50%, 50% 0%, ${percentage >= 50 ? '100%' : '50%'} 0%, 100% 100%, 100% 100%, 50% 50%)`
-                      }}
-                      title={`${category.name}: ${category.percentage}% (₹${category.amount.toLocaleString()})`}
-                    ></div>
-                  );
-                })}
-              </div>
-              <div className="pie-legend">
-                {formData.categories.map(category => (
-                  <div key={category.name} className="legend-item">
-                    <span 
-                      className="legend-color" 
-                      style={{ backgroundColor: category.color }}
-                    ></span>
-                    <span className="legend-label">{category.name}</span>
-                    <span className="legend-percentage">{category.percentage}%</span>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
 
           {/* Form Actions */}
           <div className="budget-form-actions">
-            <button type="button" className="budget-btn-cancel" onClick={onClose}>
-              <i className="fas fa-times"></i> Cancel
+            <button 
+              type="button" 
+              className="budget-btn-cancel" 
+              onClick={handleClose}
+              disabled={loading}
+            >
+              Cancel
             </button>
             <button 
               type="submit" 
               className="budget-btn-submit"
-              disabled={totalAllocated !== 100 || formData.totalBudget <= 0}
+              disabled={totalAllocated !== 100 || !formData.totalBudget || Number(formData.totalBudget) <= 0 || loading}
             >
-              <i className="fas fa-check-circle"></i> Set Budget
+              {loading ? 'Saving...' : 'Set Budget'}
             </button>
-          </div>
-
-          {/* Budget Tips */}
-          <div className="budget-tips">
-            <h4><i className="fas fa-lightbulb"></i> Budgeting Tips</h4>
-            <ul>
-              <li>✅ Allocate 50-60% of your budget to needs (Food, Transport, Bills)</li>
-              <li>✅ Reserve 20-30% for wants (Entertainment, Shopping)</li>
-              <li>✅ Save at least 10-20% of your income</li>
-              <li>✅ Review and adjust your budget monthly</li>
-            </ul>
           </div>
         </form>
       </div>

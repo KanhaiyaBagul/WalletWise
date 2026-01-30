@@ -1,350 +1,456 @@
-// src/components/SavingsGoal.jsx
 import React, { useState, useEffect } from 'react';
+import api from '../api/client';
 import './SavingGoal.css';
 
-const SavingsGoal = ({ isOpen, onClose, currentSavings = 0, onSetGoal }) => {
+const SavingGoal = ({ isOpen, onClose, onGoalCreated }) => {
+  const [timeline, setTimeline] = useState(6); // default 6 months
   const [formData, setFormData] = useState({
-    goalName: 'New Phone',
-    targetAmount: 25000,
-    targetDate: '',
-    currentAmount: currentSavings,
-    priority: 'medium',
-    recurring: false,
-    monthlyContribution: 1000
+    name: '',
+    targetAmount: '',
+    currentAmount: '',
+    category: 'Emergency Fund',
+    priority: 'Medium'
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  const [timeline, setTimeline] = useState(6); // months
+  const categories = ['Emergency Fund', 'Travel', 'Education', 'Home', 'Vehicle', 'Retirement', 'Wedding', 'Health', 'Gift', 'Other'];
+  
+  const priorityOptions = [
+    { value: 'Critical', label: 'Must Have', color: '#FF6B6B' },
+    { value: 'High', label: 'High Priority', color: '#4ECDC4' },
+    { value: 'Medium', label: 'Medium Priority', color: '#FFD166' },
+    { value: 'Low', label: 'Low Priority', color: '#06D6A0' }
+  ];
 
-  // Set default target date to 6 months from now
-  useEffect(() => {
-    const today = new Date();
-    const futureDate = new Date(today.setMonth(today.getMonth() + timeline));
-    const formattedDate = futureDate.toISOString().split('T')[0];
-    
-    setFormData(prev => ({
-      ...prev,
-      targetDate: formattedDate
-    }));
-  }, [timeline]);
+  // Calculate remaining and monthly needed
+  const targetAmountNum = Number(formData.targetAmount) || 0;
+  const currentAmountNum = Number(formData.currentAmount) || 0;
+  const remaining = Math.max(0, targetAmountNum - currentAmountNum);
+  const monthlyNeeded = timeline > 0 ? Math.ceil(remaining / timeline) : 0;
 
-  useEffect(() => {
-    // Recalculate monthly contribution when target amount or timeline changes
-    const months = timeline;
-    const monthly = Math.ceil(formData.targetAmount / months);
-    
-    setFormData(prev => ({
-      ...prev,
-      monthlyContribution: monthly
-    }));
-  }, [formData.targetAmount, timeline]);
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-  };
-
-  const handleTargetAmountChange = (e) => {
-    const value = e.target.value;
-    const numValue = value === '' ? 0 : parseInt(value) || 0;
-    setFormData(prev => ({ ...prev, targetAmount: numValue }));
-  };
-
-  const handleMonthlyContributionChange = (e) => {
-    const value = e.target.value;
-    const numValue = value === '' ? 0 : parseInt(value) || 0;
-    setFormData(prev => ({ ...prev, monthlyContribution: numValue }));
-  };
-
-  const handleTimelineChange = (months) => {
-    setTimeline(months);
-    // Recalculate monthly contribution
-    const monthly = Math.ceil(formData.targetAmount / months);
-    setFormData(prev => ({ ...prev, monthlyContribution: monthly }));
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('Form submit triggered');
+    setLoading(true);
+    setError('');
+    setSuccess('');
 
-    if (formData.targetAmount <= 0) {
-      alert('Please enter a valid target amount');
+    // Validation
+    if (!formData.name.trim()) {
+      setError('Please enter a goal name');
+      setLoading(false);
       return;
     }
 
-    if (formData.targetAmount <= formData.currentAmount) {
-      alert('Target amount should be greater than current savings');
+    if (!formData.targetAmount || Number(formData.targetAmount) <= 0) {
+      setError('Please enter a valid target amount');
+      setLoading(false);
       return;
     }
 
-    const goalData = {
-      ...formData,
-      timeline,
-      progress: Math.round((formData.currentAmount / formData.targetAmount) * 100),
-      remainingAmount: formData.targetAmount - formData.currentAmount,
-      monthlyRequired: formData.monthlyContribution
-    };
+    if (timeline <= 0) {
+      setError('Please select a valid timeline');
+      setLoading(false);
+      return;
+    }
 
-    onSetGoal(goalData);
-    onClose();
+    // Calculate target date
+    const targetDate = new Date();
+    targetDate.setMonth(targetDate.getMonth() + timeline);
     
-    alert(`Savings goal "${formData.goalName}" created successfully!`);
-  };
+    console.log('Calculated target date:', targetDate.toISOString());
 
-  const calculateProgress = () => {
-    return Math.min(Math.round((formData.currentAmount / formData.targetAmount) * 100), 100);
-  };
-
-  const getPriorityColor = (priority) => {
-    const colors = {
-      'low': '#4ECDC4',
-      'medium': '#FFD166',
-      'high': '#FF6B6B'
+    // Prepare goal data matching backend model
+    const goalData = {
+      name: formData.name.trim(),
+      description: formData.description || `Saving for ${formData.name}`,
+      targetAmount: parseFloat(formData.targetAmount),
+      currentAmount: parseFloat(formData.currentAmount || 0),
+      targetDate: targetDate.toISOString(),
+      category: formData.category,
+      priority: formData.priority,
+      monthlyContribution: monthlyNeeded,
+      isActive: true
     };
-    return colors[priority] || '#FFD166';
+
+    console.log('Goal data to send:', goalData);
+
+    try {
+      console.log('Sending request to backend...');
+      
+      // ADD TIMEOUT to prevent hanging indefinitely
+      const response = await api.post('/api/savings-goals', goalData, {
+        timeout: 15000
+      });
+
+      console.log('Response received:', response.data);
+      
+      if (response.data && response.data.message) {
+        setSuccess(response.data.message);
+      } else {
+        setSuccess('Goal created successfully!');
+      }
+      
+      // Call parent callback with the created goal
+      if (onGoalCreated) {
+        onGoalCreated(response.data.goal || response.data);
+      }
+      
+      // Reset form after short delay
+      setTimeout(() => {
+        console.log('Closing modal and resetting form');
+        resetForm();
+        if (onClose) onClose();
+      }, 1500);
+      
+    } catch (err) {
+      console.error('Error creating goal:', err);
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        code: err.code
+      });
+      
+      // Handle different types of errors
+      let errorMessage = 'Failed to create goal. Please try again.';
+      
+      if (err.response) {
+        // Server responded with error
+        if (err.response.status === 401) {
+          errorMessage = 'Session expired. Please login again.';
+          // Redirect to login after delay
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 2000);
+        } else if (err.response.status === 400) {
+          errorMessage = err.response.data.message || 'Invalid data. Please check your inputs.';
+        } else if (err.response.status === 404) {
+          errorMessage = 'API endpoint not found. Please check backend server.';
+        } else if (err.response.status === 500) {
+          errorMessage = 'Server error. Please try again later.';
+        } else if (err.response.data && err.response.data.errors) {
+          // Mongoose validation errors
+          const errors = err.response.data.errors;
+          errorMessage = Object.values(errors).map(e => e.message).join(', ');
+        } else if (err.response.data && err.response.data.message) {
+          errorMessage = err.response.data.message;
+        }
+      } else if (err.request) {
+        // Request made but no response
+        errorMessage = 'No response from server. Please check: 1) Backend is running, 2) CORS is configured, 3) Network connection';
+        console.log('No response received. Check if backend server is running at http://localhost:5000');
+      } else if (err.code === 'ECONNABORTED') {
+        errorMessage = 'Request timeout. Server might be busy or offline.';
+      } else if (err.code === 'ERR_NETWORK') {
+        errorMessage = 'Network error. Check your internet connection and ensure backend is running.';
+      }
+      
+      setError(errorMessage);
+      setLoading(false);
+    }
   };
+
+  const handleOverlayClick = (e) => {
+    if (e.target.classList.contains('savings-modal-overlay')) {
+      onClose();
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      description: '',
+      targetAmount: '',
+      currentAmount: '',
+      category: 'Emergency Fund',
+      priority: 'Medium'
+    });
+    setTimeline(6);
+    setError('');
+    setSuccess('');
+    setLoading(false);
+  };
+
+  const handleClose = () => {
+    if (!loading) {
+      resetForm();
+      if (onClose) onClose();
+    }
+  };
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      resetForm();
+    }
+  }, [isOpen]);
+
+  // Add keyboard event listener for Escape key
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && isOpen && !loading) {
+        handleClose();
+      }
+    };
+    
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isOpen, loading]);
 
   if (!isOpen) return null;
 
-  const progress = calculateProgress();
-  const remainingAmount = formData.targetAmount - formData.currentAmount;
-  const monthlyNeeded = Math.ceil(remainingAmount / timeline);
-
   return (
-    <div className="savings-modal-overlay">
-      <div className="savings-modal-content">
+    <div className="savings-modal-overlay" onClick={handleOverlayClick}>
+      <div className="savings-modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="savings-modal-header">
           <div className="header-left">
-            <i className="fas fa-piggy-bank"></i>
-            <h2>Create Savings Goal 🎯</h2>
+            <h2>Create Savings Goal</h2>
+            <p className="subtitle">Plan and track your financial goals</p>
           </div>
-          <button className="close-savings-btn" onClick={onClose}>
-            <i className="fas fa-times"></i>
+          <button 
+            className="close-savings-btn" 
+            onClick={handleClose} 
+            disabled={loading}
+            aria-label="Close"
+          >
+            ×
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        {error && (
+          <div className="savings-error-alert">
+            <span>⚠️ {error}</span>
+            {error.includes('backend') && (
+              <div className="debug-info">
+                <small>Check: 1) Run backend server (npm start in backend folder), 2) Verify endpoint exists</small>
+              </div>
+            )}
+          </div>
+        )}
+
+        {success && (
+          <div className="savings-success-alert">
+            <span>✅ {success}</span>
+            <div className="success-timer">
+              <div className="timer-bar"></div>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="savings-form">
           {/* Goal Name */}
           <div className="savings-form-group">
             <label htmlFor="goalName">
-              <i className="fas fa-bullseye"></i> Goal Name *
+              Goal Name *
             </label>
             <input
               type="text"
               id="goalName"
-              name="goalName"
-              value={formData.goalName}
-              onChange={handleChange}
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g., New Laptop, Vacation, Emergency Fund"
               required
+              disabled={loading}
+              className={formData.name ? 'filled' : ''}
               autoFocus
             />
           </div>
 
-          {/* Target Amount & Current Savings */}
-          <div className="amounts-grid">
-            <div className="savings-form-group">
-              <label htmlFor="targetAmount">
-                <i className="fas fa-flag-checkered"></i> Target Amount *
-              </label>
-              <div className="amount-input">
-                <span className="amount-currency">₹</span>
-                <input
-                  type="number"
-                  id="targetAmount"
-                  name="targetAmount"
-                  value={formData.targetAmount}
-                  onChange={handleTargetAmountChange}
-                  placeholder="0"
-                  min="1"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="savings-form-group">
-              <label htmlFor="currentAmount">
-                <i className="fas fa-wallet"></i> Current Savings
-              </label>
-              <div className="amount-input">
-                <span className="amount-currency">₹</span>
-                <input
-                  type="number"
-                  id="currentAmount"
-                  name="currentAmount"
-                  value={formData.currentAmount}
-                  onChange={handleChange}
-                  placeholder="0"
-                  min="0"
-                  max={formData.targetAmount}
-                />
-              </div>
+          {/* Description (Optional) */}
+          <div className="savings-form-group">
+            <label htmlFor="description">
+              Description (Optional)
+            </label>
+            <textarea
+              id="description"
+              value={formData.description || ''}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Add notes about your goal..."
+              rows="3"
+              disabled={loading}
+              maxLength="500"
+            />
+            <div className="char-count">
+              {formData.description ? formData.description.length : 0}/500
             </div>
           </div>
 
-          {/* Progress Bar */}
+          {/* Target Amount */}
           <div className="savings-form-group">
-            <label>Progress</label>
-            <div className="progress-container">
-              <div className="progress-bar">
-                <div 
-                  className="progress-fill"
-                  style={{ width: `${progress}%` }}
-                ></div>
-              </div>
-              <div className="progress-info">
-                <span className="progress-text">
-                  ₹{formData.currentAmount.toLocaleString()} / ₹{formData.targetAmount.toLocaleString()}
-                </span>
-                <span className="progress-percentage">{progress}%</span>
-              </div>
+            <label htmlFor="targetAmount">
+              Target Amount (₹) *
+            </label>
+            <div className="amount-input-group">
+              <span className="currency-label">₹</span>
+              <input
+                type="number"
+                id="targetAmount"
+                value={formData.targetAmount}
+                onChange={(e) => setFormData({ ...formData, targetAmount: e.target.value })}
+                placeholder="5000"
+                min="1"
+                step="0.01"
+                required
+                disabled={loading}
+                className={formData.targetAmount ? 'filled' : ''}
+              />
+            </div>
+          </div>
+
+          {/* Current Savings */}
+          <div className="savings-form-group">
+            <label htmlFor="currentAmount">
+              Current Savings (₹)
+            </label>
+            <div className="amount-input-group">
+              <span className="currency-label">₹</span>
+              <input
+                type="number"
+                id="currentAmount"
+                value={formData.currentAmount}
+                onChange={(e) => setFormData({ ...formData, currentAmount: e.target.value })}
+                placeholder="0"
+                min="0"
+                step="0.01"
+                disabled={loading}
+              />
+            </div>
+            <div className="helper-text">
+              How much have you saved already?
+            </div>
+          </div>
+
+          {/* Priority Level */}
+          <div className="savings-form-group">
+            <label>Priority Level</label>
+            <div className="priority-grid">
+              {priorityOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`priority-btn ${formData.priority === opt.value ? 'active' : ''}`}
+                  onClick={() => setFormData({ ...formData, priority: opt.value })}
+                  disabled={loading}
+                  style={{ '--priority-color': opt.color }}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </div>
 
           {/* Timeline Selection */}
           <div className="savings-form-group">
-            <label>
-              <i className="fas fa-calendar-alt"></i> Timeline
-            </label>
-            <div className="timeline-buttons">
-              {[3, 6, 9, 12, 18, 24].map(months => (
+            <label>Timeline (Months) *</label>
+            <div className="timeline-grid">
+              {[1, 3, 6, 12, 24].map(m => (
                 <button
-                  key={months}
+                  key={m}
                   type="button"
-                  className={`timeline-btn ${timeline === months ? 'active' : ''}`}
-                  onClick={() => handleTimelineChange(months)}
+                  className={`timeline-btn ${timeline === m ? 'active' : ''}`}
+                  onClick={() => setTimeline(m)}
+                  disabled={loading}
                 >
-                  {months} months
+                  {m} {m === 1 ? 'Month' : 'Months'}
                 </button>
               ))}
             </div>
-            <p className="savings-hint">
-              Target Date: {new Date(formData.targetDate).toLocaleDateString('en-IN', { 
-                day: 'numeric', 
-                month: 'long', 
-                year: 'numeric' 
-              })}
-            </p>
-          </div>
-
-          {/* Monthly Contribution */}
-          <div className="savings-form-group">
-            <label htmlFor="monthlyContribution">
-              <i className="fas fa-calendar-check"></i> Monthly Contribution
-            </label>
-            <div className="amount-input">
-              <span className="amount-currency">₹</span>
-              <input
-                type="number"
-                id="monthlyContribution"
-                name="monthlyContribution"
-                value={formData.monthlyContribution}
-                onChange={handleMonthlyContributionChange}
-                placeholder="0"
-                min="1"
-              />
+            <div className="helper-text">
+              When do you want to achieve this goal?
             </div>
-            <p className="savings-hint">
-              You need to save ₹{monthlyNeeded.toLocaleString()} per month to reach your goal
-            </p>
           </div>
 
-          {/* Priority Selection */}
+          {/* Category Dropdown */}
           <div className="savings-form-group">
-            <label htmlFor="priority">
-              <i className="fas fa-exclamation-circle"></i> Priority
-            </label>
-            <select
-              id="priority"
-              name="priority"
-              value={formData.priority}
-              onChange={handleChange}
+            <label htmlFor="category">Goal Category</label>
+            <select 
+              id="category"
+              value={formData.category} 
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              disabled={loading}
             >
-              <option value="low">Low Priority</option>
-              <option value="medium">Medium Priority</option>
-              <option value="high">High Priority</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
 
-          {/* Recurring Option */}
-          <div className="savings-form-group">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                name="recurring"
-                checked={formData.recurring}
-                onChange={handleChange}
-              />
-              <i className="fas fa-redo"></i> Set as recurring goal (auto-reset after completion)
-            </label>
-          </div>
-
-          {/* Summary Card */}
-          <div className="summary-card">
-            <h4><i className="fas fa-chart-line"></i> Goal Summary</h4>
-            <div className="summary-grid">
-              <div className="summary-item">
-                <span className="summary-label">Goal</span>
-                <span className="summary-value">🎯 {formData.goalName}</span>
+          {/* Dynamic Summary Card */}
+          {(formData.targetAmount && Number(formData.targetAmount) > 0) && (
+            <div className="savings-summary-card">
+              <div className="summary-title">
+                <span>📊 Plan Summary</span>
               </div>
-              <div className="summary-item">
-                <span className="summary-label">Target</span>
-                <span className="summary-value">₹{formData.targetAmount.toLocaleString()}</span>
+              
+              <div className="summary-grid">
+                <div className="summary-item">
+                  <span className="summary-label">Target:</span>
+                  <span className="summary-value">₹{targetAmountNum.toLocaleString('en-IN')}</span>
+                </div>
+                
+                <div className="summary-item">
+                  <span className="summary-label">Current:</span>
+                  <span className="summary-value">₹{currentAmountNum.toLocaleString('en-IN')}</span>
+                </div>
+                
+                <div className="summary-item">
+                  <span className="summary-label">Remaining:</span>
+                  <span className="summary-value highlight">₹{remaining.toLocaleString('en-IN')}</span>
+                </div>
+                
+                <div className="summary-item">
+                  <span className="summary-label">Timeline:</span>
+                  <span className="summary-value">{timeline} months</span>
+                </div>
               </div>
-              <div className="summary-item">
-                <span className="summary-label">Timeline</span>
-                <span className="summary-value">{timeline} months</span>
-              </div>
-              <div className="summary-item">
-                <span className="summary-label">Monthly</span>
-                <span className="summary-value">₹{monthlyNeeded.toLocaleString()}</span>
-              </div>
-              <div className="summary-item">
-                <span className="summary-label">Priority</span>
-                <span 
-                  className="summary-value priority-badge"
-                  style={{ backgroundColor: getPriorityColor(formData.priority) }}
-                >
-                  {formData.priority}
-                </span>
-              </div>
-              <div className="summary-item">
-                <span className="summary-label">Remaining</span>
-                <span className="summary-value remaining">₹{remainingAmount.toLocaleString()}</span>
+              
+              <div className="monthly-section">
+                <div className="monthly-label">Monthly savings needed:</div>
+                <div className="monthly-amount">₹{monthlyNeeded.toLocaleString('en-IN')}</div>
+                <div className="monthly-note">
+                  Save this amount each month to reach your goal on time
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Form Actions */}
           <div className="savings-form-actions">
-            <button type="button" className="savings-btn-cancel" onClick={onClose}>
-              <i className="fas fa-times"></i> Cancel
+            <button 
+              type="button" 
+              className="savings-btn-cancel" 
+              onClick={handleClose}
+              disabled={loading}
+            >
+              Cancel
             </button>
             <button 
               type="submit" 
               className="savings-btn-submit"
-              disabled={formData.targetAmount <= 0 || formData.targetAmount <= formData.currentAmount}
+              disabled={loading || !formData.name.trim() || !formData.targetAmount || Number(formData.targetAmount) <= 0}
             >
-              <i className="fas fa-check-circle"></i> Create Goal
+              {loading ? (
+                <>
+                  <span className="spinner"></span>
+                  Creating...
+                </>
+              ) : 'Create Goal'}
             </button>
           </div>
-
-          {/* Savings Tips */}
-          <div className="savings-tips">
-            <h4><i className="fas fa-lightbulb"></i> Savings Tips</h4>
-            <ul>
-              <li>✅ Start with an emergency fund of 3-6 months of expenses</li>
-              <li>✅ Automate your savings with monthly transfers</li>
-              <li>✅ Review and adjust your goals quarterly</li>
-              <li>✅ Celebrate small milestones to stay motivated</li>
-              <li>✅ Consider high-yield savings accounts for better returns</li>
-            </ul>
-          </div>
+          
+          {/* Debug info - only in development */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="debug-info">
+              <small>
+                Endpoint: http://localhost:5000/api/savings-goals
+              </small>
+            </div>
+          )}
         </form>
       </div>
     </div>
   );
 };
 
-export default SavingsGoal;
+export default SavingGoal;
