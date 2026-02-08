@@ -8,6 +8,14 @@ const { configurePassport } = require('./config/passport');
 const authRoutes = require('./routes/authRoutes');
 const oauthRoutes = require('./routes/oauthRoutes');
 const { protect } = require('./middleware/auth');
+const validate = require('./middleware/validate');
+const { 
+  budgetSchema: budgetValidation, 
+  updateBudgetSchema: updateBudgetValidation,
+  savingsGoalSchema: savingsGoalValidation, 
+  addAmountSchema: addAmountValidation,
+  transactionSchema: transactionValidation 
+} = require('./utils/validationSchemas');
 dotenv.config();
 
 // Initialize Express app
@@ -97,7 +105,6 @@ mongoose.connect(MONGODB_URI, {
 
 // ==================== MODELS ====================
 
-// User Model
 const User = require('./models/User');
 const Transaction = require('./models/Transactions');
 
@@ -126,7 +133,8 @@ app.use('/auth', oauthRoutes);
 // ==================== BUDGET ROUTES ====================
 
 // Set/Update Budget
-app.post('/api/budget', protect, sanitizeInput, async (req, res) => {
+// Set/Update Budget
+app.post('/api/budget', protect, validate(budgetValidation), async (req, res) => {
   try {
     console.log('\n💰 SET BUDGET REQUEST');
     console.log('User ID:', req.userId);
@@ -529,7 +537,7 @@ app.delete('/api/budget/:id', protect, async (req, res) => {
 });
 
 // Update Budget
-app.put('/api/budget/:id', protect, sanitizeInput, async (req, res) => {
+app.put('/api/budget/:id', protect, validate(updateBudgetValidation), async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.userId;
@@ -678,7 +686,8 @@ app.get('/api/budget/stats/summary', protect, async (req, res) => {
 // ==================== SAVINGS GOALS ROUTES ====================
 
 // Create Savings Goal - SIMPLIFIED
-app.post('/api/savings-goals', sanitizeInput, protect, async (req, res) => {
+// Create Savings Goal - SIMPLIFIED
+app.post('/api/savings-goals', protect, validate(savingsGoalValidation), async (req, res) => {
   try {
     console.log('\n🎯 CREATE SAVINGS GOAL REQUEST');
     console.log('User ID:', req.userId);
@@ -790,7 +799,7 @@ app.get('/api/savings-goals', protect, async (req, res) => {
 });
 
 // Add amount to a savings goal
-app.patch('/api/savings-goals/:id/add', sanitizeInput, protect, async (req, res) => {
+app.patch('/api/savings-goals/:id/add', protect, validate(addAmountValidation), async (req, res) => {
   try {
     const goalId = req.params.id;
     const amount = parseFloat(req.body?.amount);
@@ -838,7 +847,8 @@ app.patch('/api/savings-goals/:id/add', sanitizeInput, protect, async (req, res)
 // ==================== TRANSACTION ROUTES ====================
 
 // Add Transaction
-app.post('/api/transactions', sanitizeInput, protect, async (req, res) => {
+// Add Transaction
+app.post('/api/transactions', protect, validate(transactionValidation), async (req, res) => {
   try {
     const userId = req.userId;
     const { type, amount, category, description, paymentMethod, mood } = req.body;
