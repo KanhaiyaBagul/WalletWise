@@ -78,8 +78,6 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/wallet
 console.log(`🔗 Connecting to MongoDB: ${MONGODB_URI}`);
 
 mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
 })
@@ -102,6 +100,7 @@ mongoose.connect(MONGODB_URI, {
 // User Model
 const User = require('./models/User');
 const Transaction = require('./models/Transactions');
+<<<<<<< HEAD
 
 // Budget Model
 const budgetSchema = new mongoose.Schema({
@@ -245,6 +244,10 @@ savingsGoalSchema.pre('save', function (next) {
 const Budget = mongoose.model('Budget', budgetSchema);
 const SavingsGoal = mongoose.model('SavingsGoal', savingsGoalSchema);
 
+=======
+const Budget = require('./models/Budget');
+const SavingsGoal = require('./models/SavingGoal');
+>>>>>>> upstream/main
 // ==================== HELPER FUNCTIONS ====================
 
 // Simple sanitization
@@ -358,8 +361,13 @@ app.post('/api/budget', protect, sanitizeInput, async (req, res) => {
     if (budget) {
       // Update existing budget
       budget.totalBudget = totalBudget;
-      budget.categories = categories;
-      budget.updatedAt = new Date();
+      budget.categories = categories.map(cat => ({
+        name: cat.name,
+        categoryType: cat.categoryType,
+        amount: cat.amount,
+        percentage: cat.percentage,
+        color: cat.color
+      }));
       await budget.save();
       console.log('✅ Budget updated:', budget._id);
     } else {
@@ -590,6 +598,7 @@ app.post('/api/budget/copy-previous', protect, async (req, res) => {
       totalBudget: previousBudget.totalBudget,
       categories: previousBudget.categories.map(cat => ({
         name: cat.name,
+        categoryType: cat.categoryType,
         amount: cat.amount,
         percentage: cat.percentage,
         color: cat.color
@@ -762,43 +771,14 @@ app.get('/api/budget/stats/summary', protect, async (req, res) => {
       });
     }
 
-    const normalize = (value) =>
-      String(value || '')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '');
-
-    const categoryAliases = {
-      food: ['food', 'grocery', 'grocer', 'dining', 'restaurant'],
-      transport: ['transport', 'travel', 'fuel', 'gas', 'uber', 'taxi', 'bus', 'train'],
-      shopping: ['shopping', 'shop', 'clothes', 'apparel'],
-      entertainment: ['entertain', 'movie', 'game', 'fun', 'subscription'],
-      education: ['education', 'school', 'tuition', 'course', 'book'],
-      healthcare: ['health', 'medical', 'doctor', 'pharmacy'],
-      housing: ['housing', 'rent', 'utility', 'utilities', 'home'],
-      other: ['other', 'misc']
-    };
-
     const spentByCategory = new Map();
     monthlyExpenses.forEach((tx) => {
-      const key = normalize(tx.category);
-      spentByCategory.set(key, (spentByCategory.get(key) || 0) + tx.amount);
+      spentByCategory.set(tx.category, (spentByCategory.get(tx.category) || 0) + tx.amount);
     });
 
-    const matchTransactionCategories = (categoryName) => {
-      const normalized = normalize(categoryName);
-      if (!normalized) return [];
-
-      const directMatch = Object.keys(categoryAliases).find((key) => key === normalized);
-      if (directMatch) return [directMatch];
-
-      return Object.entries(categoryAliases)
-        .filter(([, aliases]) => aliases.some((alias) => normalized.includes(normalize(alias))))
-        .map(([key]) => key);
-    };
-
     const categoriesWithSpend = budget.categories.map((category) => {
-      const matches = matchTransactionCategories(category.name);
-      const spent = matches.reduce((sum, key) => sum + (spentByCategory.get(key) || 0), 0);
+      const categoryKey = category.categoryType || category.name.toLowerCase();
+      const spent = spentByCategory.get(categoryKey) || 0;
       return {
         ...category.toObject(),
         spent
