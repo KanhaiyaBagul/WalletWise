@@ -216,7 +216,7 @@ body.theme-dark .ww-header.scrolled {
 /* --- Steps & Testimonials --- */
 .ww-steps-row, .ww-testimonial-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-top: 40px; }
 .ww-step-col { position: relative; }
-.ww-step-num { font-size: 3.5rem; font-weight: 800; color: #E2E8F0; line-height: 1; margin-bottom: 16px; }
+.ww-step-num { font-size: 3.5rem; font-weight: 800; color: #645f5f; line-height: 1; margin-bottom: 16px; }
 .ww-step-col h3 { font-size: 1.25rem; margin-bottom: 10px; }
 .ww-step-col p { color: var(--text-muted); font-size: 1.05rem; }
 .ww-testimonial-card { padding: 32px; background: var(--bg-subtle); border-radius: 20px; position: relative; }
