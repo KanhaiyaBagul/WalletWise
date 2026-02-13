@@ -27,6 +27,9 @@ WalletWise transforms raw financial data into actionable intelligence, helping u
 
 ---
 
+⚠️ **Current Status:** WalletWise is under active development. Core transaction tracking and monthly budgeting features are implemented. Predictive budgeting, AI behaviour analysis, and the decision helper module are planned and currently in progress.
+
+
 ## 🚀 Why WalletWise Exists
 
 Most financial tools fail at one crucial point:
