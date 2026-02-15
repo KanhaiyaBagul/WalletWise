@@ -43,9 +43,15 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Body parsers with stricter limits to prevent memory exhaustion
+// Body parsers
 app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+// Disable extended urlencoded to prevent naive form attacks, though the middleware below is the real fix
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+
+// ==================== SECURITY MIDDLEWARE ====================
+const { enforceJsonContent } = require('./middleware/security');
+// Apply strict content-type enforcement to ALL API routes
+app.use('/api', enforceJsonContent);
 
 // Cookie parser
 app.use(cookieParser());
