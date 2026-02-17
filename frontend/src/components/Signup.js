@@ -10,7 +10,11 @@ import {
   FaIdCard,
   FaUniversity,
   FaGraduationCap,
-  FaPhone
+  FaPhone,
+  FaEye,
+  FaEyeSlash,
+  FaGoogle,
+  FaArrowLeft
 } from 'react-icons/fa';
 import './Auth.css';
 
@@ -27,6 +31,8 @@ const Signup = () => {
   });
 
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
   const { signup } = useAuth();
 
@@ -148,7 +154,7 @@ const Signup = () => {
   };
 
   return (
-    <div className="auth-container">
+    <div className="auth-container split-layout">
       <ToastContainer
         position="top-right"
         autoClose={5000}
@@ -161,12 +167,43 @@ const Signup = () => {
         pauseOnHover
       />
 
+      <div className="auth-features">
+        <h1>Student Benefits</h1>
+        <ul>
+          <li>No-cost student plan</li>
+          <li>Smart budgeting templates</li>
+          <li>Insightful weekly summaries</li>
+          <li>Alerts for overspending</li>
+          <li>Export-ready reports</li>
+        </ul>
+      </div>
+
       <div className="auth-card">
+        <Link to="/" className="back-to-home">
+          <FaArrowLeft /> Back to Home
+        </Link>
         <div className="auth-header">
           <h1>WalletWise</h1>
-          <p className="subtitle">Create your student account.</p>
-          
+          <p className="subtitle">Create your student account</p>
+
         </div>
+
+        <button
+          type="button"
+          className="demo-btn google-btn"
+          onClick={() => {
+            const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            window.location.href = `${apiBase}/auth/google`;
+          }}
+        >
+          <FaGoogle className="google-icon" />
+          Sign Up with Google
+        </button>
+
+        <div className="auth-divider">
+          <span>OR</span>
+        </div>
+
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-row">
@@ -181,7 +218,7 @@ const Signup = () => {
                 name="studentId"
                 value={studentId}
                 onChange={handleChange}
-                placeholder="Enter your student ID"
+                placeholder="Your student ID"
                 required
                 disabled={loading}
               />
@@ -198,7 +235,7 @@ const Signup = () => {
                 name="fullName"
                 value={fullName}
                 onChange={handleChange}
-                placeholder="Enter your full name"
+                placeholder="Your full name"
                 required
                 disabled={loading}
               />
@@ -216,7 +253,7 @@ const Signup = () => {
               name="email"
               value={email}
               onChange={handleChange}
-              placeholder="Enter your email"
+              placeholder="Your email address"
               required
               disabled={loading}
             />
@@ -226,18 +263,29 @@ const Signup = () => {
             <div className="form-group">
               <label htmlFor="password">
                 <FaLock className="input-icon" />
-                Password * (min 6 chars)
+                Password *
               </label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={password}
-                onChange={handleChange}
-                placeholder="At least 6 characters"
-                required
-                disabled={loading}
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  name="password"
+                  value={password}
+                  onChange={handleChange}
+                  placeholder="Min 6 characters"
+                  required
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                  aria-label="Toggle password visibility"
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
             </div>
 
             <div className="form-group">
@@ -245,16 +293,27 @@ const Signup = () => {
                 <FaLock className="input-icon" />
                 Confirm Password *
               </label>
-              <input
-                type="password"
-                id="confirmPassword"
-                name="confirmPassword"
-                value={confirmPassword}
-                onChange={handleChange}
-                placeholder="Confirm your password"
-                required
-                disabled={loading}
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  value={confirmPassword}
+                  onChange={handleChange}
+                  placeholder="Confirm password"
+                  required
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  tabIndex={-1}
+                  aria-label="Toggle confirm password visibility"
+                >
+                  {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -270,7 +329,7 @@ const Signup = () => {
                 name="phoneNumber"
                 value={phoneNumber}
                 onChange={handleChange}
-                placeholder="Enter your phone number"
+                placeholder="Your phone number"
                 disabled={loading}
               />
             </div>
@@ -317,8 +376,10 @@ const Signup = () => {
           <div className="terms-agreement">
             <label>
               <input type="checkbox" required disabled={loading} />
-              I agree to the <Link to="/terms">Terms & Conditions</Link> and{' '}
-              <Link to="/privacy">Privacy Policy</Link>
+              <span>
+                I agree to the <Link to="/terms">Terms & Conditions</Link> and{' '}
+                <Link to="/privacy">Privacy Policy</Link>
+              </span>
             </label>
           </div>
 
@@ -337,43 +398,14 @@ const Signup = () => {
             )}
           </button>
 
-          <div className="auth-divider">
-            <span>OR</span>
-          </div>
-
-          <button
-            type="button"
-            className="demo-btn google-btn"
-            onClick={() => {
-              const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-              window.location.href = `${apiBase}/auth/google`;
-            }}
-          >
-            Continue with Google
-          </button>
         </form>
 
         <div className="auth-footer">
           <p>
             Already have an account?
-            <Link to="/login" className="auth-link">
-              {' '}
-              Login
-            </Link>
+            <Link to="/login" className="auth-link">Login</Link>
           </p>
-         
         </div>
-      </div>
-
-      <div className="auth-features">
-        <h3>Student Benefits</h3>
-        <ul>
-          <li>No-cost student plan</li>
-          <li>Smart budgeting templates</li>
-          <li>Insightful weekly summaries</li>
-          <li>Alerts for overspending</li>
-          <li>Export-ready reports</li>
-        </ul>
       </div>
     </div>
   );

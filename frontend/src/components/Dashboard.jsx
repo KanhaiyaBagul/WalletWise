@@ -8,16 +8,17 @@ import AddExpense from '../pages/AddExpense';
 import AddIncome from '../pages/AddIncome';
 import SetBudget from '../pages/SetBudget';
 import SavingGoal from '../pages/SavingGoal';
-import { 
+import {
   FaWallet, FaSignOutAlt, FaUserCircle, FaChevronDown,
-  FaMoneyBillWave, FaChartLine, FaPiggyBank, FaPlusCircle,
+  FaMoneyBillWave, FaChartLine, FaPiggyBank,
   FaHandHoldingUsd, FaBullseye, FaChartBar, FaExclamationTriangle,
-  FaBrain, FaArrowUp, FaArrowDown, FaCalendarAlt,
-  FaSync, FaExclamationCircle, FaHome, FaExchangeAlt,
-  FaCog, FaChartPie, FaCreditCard, FaFileAlt, FaBell,
-  FaFilter, FaSearch
+  FaBrain, FaArrowUp, FaCalendarAlt,
+  FaSync, FaHome, FaExchangeAlt,
+  FaCog, FaChartPie, FaEdit, FaTrash, FaCalendarCheck, FaBell, FaSun, FaMoon
 } from 'react-icons/fa';
-import { Line, Pie, Bar } from 'react-chartjs-2';
+import { useTheme } from '../context/ThemeContext';
+import { Line, Pie } from 'react-chartjs-2';
+
 import { toast } from 'react-hot-toast';
 import {
   Chart as ChartJS,
@@ -55,20 +56,26 @@ const Dashboard = () => {
   const [currentDate, setCurrentDate] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false); // New State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
 
   const userMenuRef = useRef(null);
+  const notificationsRef = useRef(null); // New Ref
   const mobileMenuRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { user: authUser, loading: authLoading, logout } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
 
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
         setShowUserMenu(false);
+      }
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
+        setShowNotifications(false);
       }
       if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target)) {
         setIsMobileMenuOpen(false);
@@ -98,9 +105,21 @@ const Dashboard = () => {
   });
 
   const [recentTransactions, setRecentTransactions] = useState([]);
+  const [upcomingBills, setUpcomingBills] = useState([]); // New State
   const [categorySpending, setCategorySpending] = useState([]);
   const [weeklyExpenses, setWeeklyExpenses] = useState([]);
   const [savingsGoals, setSavingsGoals] = useState([]);
+  const [transactionToEdit, setTransactionToEdit] = useState(null);
+
+  // Filter bills due in <= 3 days for notifications
+  const dueNotifications = upcomingBills.filter(bill => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dueDate = new Date(bill.dueDate);
+    const diffTime = dueDate - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 3 && diffDays >= 0;
+  });
 
   // Navigation items with proper routes
   const navItems = [
@@ -109,10 +128,78 @@ const Dashboard = () => {
     { id: 'budget', label: 'Budget', icon: FaChartPie, path: '/budget' },
     { id: 'goals', label: 'Goals', icon: FaBullseye, path: '/goals' },
     { id: 'reports', label: 'Reports', icon: FaChartBar, path: '/reports' },
+    { id: 'subscriptions', label: 'Subscriptions', icon: FaCalendarCheck, path: '/subscriptions' },
     { id: 'settings', label: 'Settings', icon: FaCog, path: '/settings' }
   ];
 
   // ============ AUTH & DATA FETCHING ============
+  // Fetch dashboard data
+  const fetchDashboardData = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      console.log('???? Fetching dashboard data...');
+
+      const dashboardRes = await api.get('/api/dashboard/summary');
+      const dashboardData = dashboardRes.data;
+
+      console.log('📋 Dashboard API Response:', dashboardData);
+
+      if (dashboardData.success) {
+        const statsData = dashboardData.stats || {};
+
+        setStats({
+          totalBalance: statsData.totalBalance || 0,
+          spentThisMonth: statsData.monthlyExpenses || 0,
+          incomeThisMonth: statsData.monthlyIncome || 0,
+          budgetLeft: statsData.budgetLeft || 0,
+          savings: statsData.totalSavings || 0,
+          monthlyBudget: statsData.monthlyBudget || 0,
+          budgetUsedPercentage: statsData.budgetUsedPercentage || 0,
+          expenseTrend: dashboardData.expenseTrend || 0
+        });
+
+        // Transactions
+        setRecentTransactions(dashboardData.recentTransactions || []);
+
+        // Upcoming Bills
+        setUpcomingBills(dashboardData.upcomingBills || []);
+
+        // Category spending
+        setCategorySpending(dashboardData.categorySpending || []);
+
+        // Weekly expenses
+        setWeeklyExpenses(dashboardData.weeklyExpenses || []);
+
+        // Savings goals
+        setSavingsGoals(dashboardData.savingsGoals || []);
+
+        // Update timestamp
+        setLastUpdated(new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        }));
+
+      } else {
+        console.error('❌ Dashboard API failed:', dashboardData.message);
+        setError('Failed to load dashboard data');
+      }
+
+    } catch (err) {
+      console.error('❌ Error fetching dashboard data:', err);
+      console.error('❌ Error details:', err.response?.data || err.message);
+
+      if (err.response?.status === 401) {
+        await logout();
+        navigate('/login');
+      } else {
+        setError('Failed to connect to server. Please try again.');
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [navigate, logout]);
+
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -150,71 +237,7 @@ const Dashboard = () => {
     };
 
     fetchUserData();
-  }, [navigate, authUser, authLoading]);
-
-  // Fetch dashboard data
-  const fetchDashboardData = async () => {
-    setRefreshing(true);
-    try {
-      console.log('???? Fetching dashboard data...');
-      
-      const dashboardRes = await api.get('/api/dashboard/summary');
-      const dashboardData = dashboardRes.data;
-
-      console.log('📋 Dashboard API Response:', dashboardData);
-
-      if (dashboardData.success) {
-        const statsData = dashboardData.stats || {};
-        
-        setStats({
-          totalBalance: statsData.totalBalance || 0,
-          spentThisMonth: statsData.monthlyExpenses || 0,
-          incomeThisMonth: statsData.monthlyIncome || 0,
-          budgetLeft: statsData.budgetLeft || 0,
-          savings: statsData.totalSavings || 0,
-          monthlyBudget: statsData.monthlyBudget || 0,
-          budgetUsedPercentage: statsData.budgetUsedPercentage || 0,
-          expenseTrend: dashboardData.expenseTrend || 0
-        });
-
-        // Transactions
-        setRecentTransactions(dashboardData.recentTransactions || []);
-        
-        // Category spending
-        setCategorySpending(dashboardData.categorySpending || []);
-        
-        // Weekly expenses
-        setWeeklyExpenses(dashboardData.weeklyExpenses || []);
-        
-        // Savings goals
-        setSavingsGoals(dashboardData.savingsGoals || []);
-
-        // Update timestamp
-        setLastUpdated(new Date().toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: true 
-        }));
-
-      } else {
-        console.error('❌ Dashboard API failed:', dashboardData.message);
-        setError('Failed to load dashboard data');
-      }
-
-    } catch (err) {
-      console.error('❌ Error fetching dashboard data:', err);
-      console.error('❌ Error details:', err.response?.data || err.message);
-      
-      if (err.response?.status === 401) {
-        await logout();
-        navigate('/login');
-      } else {
-        setError('Failed to connect to server. Please try again.');
-      }
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  }, [navigate, authUser, authLoading, fetchDashboardData]);
 
   // ============ HANDLERS ============
   const handleLogout = async () => {
@@ -236,38 +259,57 @@ const Dashboard = () => {
     return false;
   };
 
-  const handleAddExpense = async (expenseData) => {
+  // Modified to handle BOTH Adding and Editing
+  const handleAddExpense = async (transactionData) => {
     try {
-      console.log('??? Adding expense:', expenseData);
-      
-      const response = await api.post('/api/transactions', expenseData);
+      let response;
 
-      console.log('✅ Expense response:', response.data);
+      // LOGIC: If it has an ID, it is an EDIT (PUT). Otherwise, it is a NEW ADD (POST).
+      if (transactionData._id) {
+        console.log('✏️ Updating transaction:', transactionData);
+        response = await api.put(`/api/transactions/${transactionData._id}`, transactionData);
+        toast.success('Transaction updated successfully');
+      } else {
+        console.log('➕ Adding new expense:', transactionData);
+        response = await api.post('/api/transactions', transactionData);
+        toast.success('Expense added successfully');
+      }
 
       if (response.data.success) {
         setShowAddExpenseModal(false);
+        setTransactionToEdit(null); // Clear the edit state
         await fetchDashboardData();
-        toast.success('Expenses added succesfullly.', {
-          style: {
-            background: '#16a34a',
-            color: '#ffffff'
-          },
-          iconTheme: {
-            primary: '#bbf7d0',
-            secondary: '#166534'
-          }
-        });
       }
     } catch (err) {
-      console.error('❌ Failed to add expense:', err);
-      alert('Failed to add expense. Please try again.');
+      console.error('❌ Failed to save transaction:', err);
+      toast.error(err.response?.data?.message || 'Failed to save transaction');
+    }
+  };
+
+  // === NEW: Handle Edit Click ===
+  const handleEdit = (transaction) => {
+    setTransactionToEdit(transaction); // Load data into state
+    setShowAddExpenseModal(true);      // Open the modal
+  };
+
+  // === NEW: Handle Delete Click ===
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this transaction?')) {
+      try {
+        await api.delete(`/api/transactions/${id}`);
+        toast.success('Transaction deleted successfully');
+        await fetchDashboardData(); // Refresh list
+      } catch (err) {
+        console.error('Error deleting transaction:', err);
+        toast.error('Failed to delete transaction');
+      }
     }
   };
 
   const handleAddIncome = async (incomeData) => {
     try {
       console.log('??? Adding income:', incomeData);
-      
+
       const response = await api.post('/api/transactions', incomeData);
 
       console.log('✅ Income response:', response.data);
@@ -321,17 +363,17 @@ const Dashboard = () => {
   };
 
   // ============ CHART CONFIGURATIONS ============
-  
+
   // Weekly expenses chart with empty state handling
   const weeklyExpensesChart = {
-    labels: weeklyExpenses.length > 0 
-      ? weeklyExpenses.map(item => item.day) 
+    labels: weeklyExpenses.length > 0
+      ? weeklyExpenses.map(item => item.day)
       : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
     datasets: [
       {
         label: 'Daily Expenses',
-        data: weeklyExpenses.length > 0 
-          ? weeklyExpenses.map(item => item.amount) 
+        data: weeklyExpenses.length > 0
+          ? weeklyExpenses.map(item => item.amount)
           : [0, 0, 0, 0, 0, 0, 0],
         borderColor: '#f87171',
         backgroundColor: 'rgba(248, 113, 113, 0.1)',
@@ -344,13 +386,13 @@ const Dashboard = () => {
 
   // Category spending chart with empty state
   const spendingByCategoryChart = {
-    labels: categorySpending.length > 0 
-      ? categorySpending.map(item => item.name) 
+    labels: categorySpending.length > 0
+      ? categorySpending.map(item => item.name)
       : ['No Data'],
     datasets: [
       {
-        data: categorySpending.length > 0 
-          ? categorySpending.map(item => item.amount) 
+        data: categorySpending.length > 0
+          ? categorySpending.map(item => item.amount)
           : [100],
         backgroundColor: [
           '#38bdf8', '#60a5fa', '#7dd3fc', '#93c5fd', '#a5b4fc',
@@ -383,7 +425,7 @@ const Dashboard = () => {
         },
         ticks: {
           color: '#64748b',
-          callback: function(value) {
+          callback: function (value) {
             return '₹' + value;
           }
         }
@@ -408,13 +450,7 @@ const Dashboard = () => {
     }).format(amount);
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short'
-    });
-  };
+
 
   const formatTransactionDate = (dateString) => {
     if (!dateString) return '';
@@ -462,7 +498,7 @@ const Dashboard = () => {
 
         {/* Center: Navigation Links */}
         <nav className="nav-center" ref={mobileMenuRef}>
-          <button 
+          <button
             className="mobile-menu-toggle"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             aria-label="Toggle menu"
@@ -494,68 +530,140 @@ const Dashboard = () => {
           </ul>
         </nav>
 
-        {/* Right: User Profile */}
-        <div className="nav-right" ref={userMenuRef}>
-          <button 
-            className="user-profile-trigger"
-            onClick={() => setShowUserMenu(!showUserMenu)}
-            aria-expanded={showUserMenu}
-            aria-label="User menu"
-            aria-haspopup="true"
+        {/* Right: User Profile & Notifications */}
+        <div className="nav-right">
+          <button
+            className="theme-toggle"
+            onClick={toggleTheme}
+            aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+            type="button"
           >
-            <div className="user-avatar" aria-hidden="true">
-              {user?.fullName?.charAt(0) || user?.name?.charAt(0) || 'U'}
-            </div>
-            <FaChevronDown className={`dropdown-arrow ${showUserMenu ? 'open' : ''}`} />
+            {isDark ? <FaSun /> : <FaMoon />}
           </button>
 
-          {/* User Dropdown Menu */}
-          {showUserMenu && (
-            <div className="user-dropdown-menu" role="menu">
-              <div className="user-dropdown-header">
-                <div className="dropdown-avatar">
-                  {user?.fullName?.charAt(0) || user?.name?.charAt(0) || 'U'}
+          <div className="nav-divider"></div>
+
+          {/* Notification Bell */}
+          <div className="notification-wrapper" ref={notificationsRef}>
+            <button
+              className="notification-trigger"
+              onClick={() => setShowNotifications(!showNotifications)}
+              aria-label="Notifications"
+            >
+              <FaBell className="nav-icon" />
+              {dueNotifications.length > 0 && (
+                <span className="notification-badge">{dueNotifications.length}</span>
+              )}
+            </button>
+
+            {/* Notification Dropdown */}
+            {showNotifications && (
+              <div className="notification-dropdown">
+                <div className="notification-header">
+                  <h3>Notifications</h3>
+                  {dueNotifications.length > 0 && (
+                    <span className="badge-count">{dueNotifications.length} new</span>
+                  )}
                 </div>
-                <div className="dropdown-user-info">
-                  <span className="dropdown-user-name">{user?.fullName || user?.name}</span>
-                  <span className="dropdown-user-email">{user?.email}</span>
+                <div className="notification-list">
+                  {dueNotifications.length === 0 ? (
+                    <div className="empty-notifications">
+                      <p>No upcoming bills due soon.</p>
+                    </div>
+                  ) : (
+                    dueNotifications.map(bill => (
+                      <div key={bill.id} className="notification-item">
+                        <div className="notif-icon-box">
+                          <FaCalendarCheck />
+                        </div>
+                        <div className="notif-content">
+                          <p className="notif-title">{bill.name}</p>
+                          <p className="notif-time">Due {new Date(bill.dueDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</p>
+                        </div>
+                        <span className="notif-amount">
+                          {/* Remove currency symbol as it is already included in formatCurrency */}
+                          {formatCurrency(bill.amount).replace(/[^0-9.,]/g, '')}
+                        </span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
-              
-              <div className="dropdown-divider"></div>
-              
-              <Link 
-                to="/profile"
-                className="dropdown-item"
-                role="menuitem"
-                onClick={() => setShowUserMenu(false)}
-              >
-                <FaUserCircle />
-                <span>Profile</span>
-              </Link>
-              
-              <Link 
-                to="/settings"
-                className="dropdown-item"
-                role="menuitem"
-                onClick={() => setShowUserMenu(false)}
-              >
-                <FaCog />
-                <span>Settings</span>
-              </Link>
-              
-              <div className="dropdown-divider"></div>
-              
-              <button 
-                onClick={handleLogout}
-                className="dropdown-item logout"
-                role="menuitem"
-              >
-                <FaSignOutAlt />
-                <span>Logout</span>
-              </button>
-            </div>
-          )}
+            )}
+          </div>
+
+          <div className="nav-divider"></div>
+
+          <div ref={userMenuRef}>
+            <button
+              className="user-profile-trigger"
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              aria-expanded={showUserMenu}
+              aria-label="User menu"
+              aria-haspopup="true"
+            >
+              <div className="user-avatar" aria-hidden="true">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt="" className="avatar-img" />
+                ) : (
+                  user?.fullName?.charAt(0) || user?.name?.charAt(0) || 'U'
+                )}
+              </div>
+              <FaChevronDown className={`dropdown-arrow ${showUserMenu ? 'open' : ''}`} />
+            </button>
+
+            {/* User Dropdown Menu */}
+            {showUserMenu && (
+              <div className="user-dropdown-menu" role="menu">
+                <div className="user-dropdown-header">
+                  <div className="dropdown-avatar">
+                    {user?.avatar ? (
+                      <img src={user.avatar} alt="" className="avatar-img" />
+                    ) : (
+                      user?.fullName?.charAt(0) || user?.name?.charAt(0) || 'U'
+                    )}
+                  </div>
+                  <div className="dropdown-user-info">
+                    <span className="dropdown-user-name">{user?.fullName || user?.name}</span>
+                    <span className="dropdown-user-email">{user?.email}</span>
+                  </div>
+                </div>
+
+                <div className="dropdown-divider"></div>
+
+                <Link
+                  to="/profile"
+                  className="dropdown-item"
+                  role="menuitem"
+                  onClick={() => setShowUserMenu(false)}
+                >
+                  <FaUserCircle />
+                  <span>Profile</span>
+                </Link>
+
+                <Link
+                  to="/settings"
+                  className="dropdown-item"
+                  role="menuitem"
+                  onClick={() => setShowUserMenu(false)}
+                >
+                  <FaCog />
+                  <span>Settings</span>
+                </Link>
+
+                <div className="dropdown-divider"></div>
+
+                <button
+                  onClick={handleLogout}
+                  className="dropdown-item logout"
+                  role="menuitem"
+                >
+                  <FaSignOutAlt />
+                  <span>Logout</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -576,10 +684,10 @@ const Dashboard = () => {
               </p>
             </div>
           </div>
-          
+
           <div className="dashboard-header-right">
             <div className="action-buttons">
-              <button 
+              <button
                 className={`refresh-btn ${refreshing ? 'refreshing' : ''}`}
                 onClick={fetchDashboardData}
                 title="Refresh dashboard data"
@@ -592,8 +700,8 @@ const Dashboard = () => {
                   <span className="last-updated">Updated {lastUpdated}</span>
                 )}
               </button>
-              
-              <button 
+
+              <button
                 className="ai-insights-btn"
                 onClick={handleAIInsights}
                 title="View AI-powered spending insights"
@@ -631,19 +739,19 @@ const Dashboard = () => {
               <p className="stat-value">{formatCurrency(stats.spentThisMonth)}</p>
               <div className="progress-container">
                 <div className="progress-bar">
-                  <div 
-                    className="progress-fill" 
+                  <div
+                    className="progress-fill"
                     style={{ width: `${Math.min(stats.budgetUsedPercentage, 100)}%` }}
                   ></div>
                 </div>
                 <span className="progress-text">
-                  {stats.monthlyBudget > 0 
-                    ? `${formatCurrency(stats.budgetLeft)} left of ${formatCurrency(stats.monthlyBudget)}` 
+                  {stats.monthlyBudget > 0
+                    ? `${formatCurrency(stats.budgetLeft)} left of ${formatCurrency(stats.monthlyBudget)}`
                     : 'No budget set'}
                 </span>
               </div>
               {stats.monthlyBudget === 0 && (
-                <button 
+                <button
                   onClick={() => setShowSetBudgetModal(true)}
                   className="cta-button small"
                 >
@@ -664,7 +772,7 @@ const Dashboard = () => {
                 <span>{savingsGoals.length} active goals</span>
               </div>
               {stats.savings === 0 && (
-                <button 
+                <button
                   onClick={() => setShowSavingsGoalModal(true)}
                   className="cta-button small"
                 >
@@ -683,19 +791,19 @@ const Dashboard = () => {
               <p className="stat-value">{Math.round(stats.budgetUsedPercentage)}% used</p>
               <div className="progress-container">
                 <div className="progress-bar">
-                  <div 
-                    className="progress-fill" 
+                  <div
+                    className="progress-fill"
                     style={{ width: `${Math.min(stats.budgetUsedPercentage, 100)}%` }}
                   ></div>
                 </div>
                 <span className="progress-text">
-                  {stats.monthlyBudget > 0 
+                  {stats.monthlyBudget > 0
                     ? `${formatCurrency(stats.monthlyBudget)} total`
                     : 'No budget set'}
                 </span>
               </div>
               {stats.monthlyBudget === 0 && (
-                <button 
+                <button
                   onClick={() => setShowSetBudgetModal(true)}
                   className="cta-button small"
                 >
@@ -705,6 +813,31 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+
+        {/* Upcoming Bills Widget */}
+        {upcomingBills.length > 0 && (
+          <div className="upcoming-bills-widget">
+            <h3 className="widget-title">
+              <FaCalendarCheck className="widget-icon" />
+              Upcoming Bills (Next 7 Days)
+            </h3>
+            <div className="bills-list">
+              {upcomingBills.map(bill => (
+                <div key={bill.id} className="bill-item">
+                  <div className="bill-date-box">
+                    <span className="bill-month">{new Date(bill.dueDate).toLocaleDateString('en-IN', { month: 'short' }).toUpperCase()}</span>
+                    <span className="bill-day">{new Date(bill.dueDate).getDate()}</span>
+                  </div>
+                  <div className="bill-info">
+                    <span className="bill-name">{bill.name}</span>
+                    <span className="bill-category">{bill.category}</span>
+                  </div>
+                  <span className="bill-amount">{formatCurrency(bill.amount)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Quick Actions */}
         <div className="quick-actions-section">
@@ -774,7 +907,7 @@ const Dashboard = () => {
                 <div className="chart-empty-state">
                   <FaChartLine className="empty-chart-icon" />
                   <p>No expense data for this week</p>
-                  <button 
+                  <button
                     onClick={() => setShowAddExpenseModal(true)}
                     className="btn-primary small"
                   >
@@ -797,7 +930,7 @@ const Dashboard = () => {
                 <div className="chart-empty-state">
                   <FaChartPie className="empty-chart-icon" />
                   <p>No category data yet</p>
-                  <button 
+                  <button
                     onClick={() => setShowAddExpenseModal(true)}
                     className="btn-primary small"
                   >
@@ -817,14 +950,14 @@ const Dashboard = () => {
               <h3>Recent Transactions</h3>
               <p className="section-subtitle">{recentTransactions.length} transactions this month</p>
             </div>
-            <button 
+            <button
               onClick={() => navigate('/transactions')}
               className="view-all-btn"
             >
               View All ({recentTransactions.length})
             </button>
           </div>
-          
+
           {recentTransactions.length > 0 ? (
             <div className="transactions-grid">
               {recentTransactions.slice(0, 6).map((transaction, index) => (
@@ -842,6 +975,23 @@ const Dashboard = () => {
                   <div className={`transaction-amount ${transaction.type}`}>
                     {transaction.type === 'expense' ? '-' : '+'}
                     {formatCurrency(transaction.amount)}
+                  </div>
+                  {/* === NEW: Action Buttons === */}
+                  <div className="transaction-actions" style={{ display: 'flex', gap: '10px', marginLeft: '15px' }}>
+                    <button
+                      onClick={() => handleEdit(transaction)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3b82f6' }}
+                      title="Edit"
+                    >
+                      <FaEdit size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(transaction._id || transaction.id)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}
+                      title="Delete"
+                    >
+                      <FaTrash size={16} />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -877,8 +1027,8 @@ const Dashboard = () => {
                   </div>
                   <div className="goal-progress">
                     <div className="progress-bar">
-                      <div 
-                        className="progress-fill green" 
+                      <div
+                        className="progress-fill green"
                         style={{ width: `${Math.min(goal.progress || 0, 100)}%` }}
                       ></div>
                     </div>
@@ -904,8 +1054,12 @@ const Dashboard = () => {
       {/* MODALS */}
       <AddExpense
         isOpen={showAddExpenseModal}
-        onClose={() => setShowAddExpenseModal(false)}
+        onClose={() => {
+          setShowAddExpenseModal(false);
+          setTransactionToEdit(null); // Critical: Clear data when closing
+        }}
         onAddExpense={handleAddExpense}
+        transactionToEdit={transactionToEdit} // <--- Pass the data here
       />
 
       <AddIncome

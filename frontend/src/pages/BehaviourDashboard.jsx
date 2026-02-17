@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  LucideArrowLeft,
   LucideArrowUpRight,
   LucideArrowDownRight,
   LucideBrain,
@@ -48,6 +47,7 @@ const BehaviourDashboard = () => {
   const [error, setError] = useState('');
   const [summary, setSummary] = useState(null);
   const [transactions, setTransactions] = useState([]);
+  const [insights, setInsights] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -55,14 +55,16 @@ const BehaviourDashboard = () => {
       setLoading(true);
       setError('');
       try {
-        const [summaryRes, txRes] = await Promise.all([
+        const [summaryRes, txRes, insightsRes] = await Promise.all([
           api.get('/api/dashboard/summary'),
-          api.get('/api/transactions')
+          api.get('/api/transactions'),
+          api.get('/api/insights/summary')
         ]);
 
         if (!isMounted) return;
         setSummary(summaryRes.data || null);
         setTransactions(txRes.data?.transactions || []);
+        setInsights(insightsRes.data || null);
       } catch (err) {
         if (!isMounted) return;
         setError('Unable to load AI analysis data right now.');
@@ -78,7 +80,7 @@ const BehaviourDashboard = () => {
   }, []);
 
   const stats = summary?.stats || {};
-  const savingsGoals = summary?.savingsGoals || [];
+  const savingsGoals = useMemo(() => summary?.savingsGoals || [], [summary]);
   const categorySpending = summary?.categorySpending || [];
 
   const confidenceScore = useMemo(() => {
@@ -214,12 +216,12 @@ const BehaviourDashboard = () => {
   const topCategory = categorySpending[0];
   const opportunityItems = topCategory
     ? [
-        {
-          id: 1,
-          label: `Cut ${topCategory.name} by 10%`,
-          savings: formatCurrency(topCategory.amount * 0.1)
-        }
-      ]
+      {
+        id: 1,
+        label: `Cut ${topCategory.name} by 10%`,
+        savings: formatCurrency(topCategory.amount * 0.1)
+      }
+    ]
     : [];
 
   const scenarios = [
@@ -231,17 +233,17 @@ const BehaviourDashboard = () => {
     },
     topCategory
       ? {
-          id: 2,
-          title: `If you adjust ${topCategory.name}`,
-          detail: `Save about ${formatCurrency(topCategory.amount * 0.1)} this month.`,
-          tone: 'scenario-success'
-        }
+        id: 2,
+        title: `If you adjust ${topCategory.name}`,
+        detail: `Save about ${formatCurrency(topCategory.amount * 0.1)} this month.`,
+        tone: 'scenario-success'
+      }
       : {
-          id: 2,
-          title: 'If you set a budget',
-          detail: 'Create a budget to unlock projections.',
-          tone: 'scenario-success'
-        }
+        id: 2,
+        title: 'If you set a budget',
+        detail: 'Create a budget to unlock projections.',
+        tone: 'scenario-success'
+      }
   ];
 
   const progressTrackers = savingsGoals.slice(0, 3).map((goal) => {
@@ -260,11 +262,35 @@ const BehaviourDashboard = () => {
 
   const priorityAction = topCategory
     ? {
-        title: `Reduce ${topCategory.name} spend`,
-        detail: `You are already at ${formatCurrency(topCategory.amount)} in ${topCategory.name} this month.`,
-        impact: `Save ${formatCurrency(topCategory.amount * 0.1)}`
-      }
+      title: `Reduce ${topCategory.name} spend`,
+      detail: `You are already at ${formatCurrency(topCategory.amount)} in ${topCategory.name} this month.`,
+      impact: `Save ${formatCurrency(topCategory.amount * 0.1)}`
+    }
     : null;
+
+  const insightMessages = useMemo(() => {
+    if (!insights?.success) return [];
+    const msgs = [];
+    const an = insights.anomalies || {};
+    (an.weeklySpikes || []).slice(0, 3).forEach((s) => msgs.push(s.message));
+    (an.largeTransactions || []).slice(0, 3).forEach((t) => msgs.push(t.message));
+    const subs = insights.subscriptions || {};
+    (subs.dueSoon || []).slice(0, 3).forEach((d) => msgs.push(d.message));
+    (subs.possiblyUnused || []).slice(0, 3).forEach((u) => msgs.push(u.message));
+    const w = insights.weekendVsWeekday?.overall;
+    if (w && (w.weekendAvg || w.weekdayAvg)) {
+      const bias =
+        w.weekendAvg > w.weekdayAvg
+          ? `weekends (+${formatCurrency(w.weekendAvg - w.weekdayAvg)} per txn)`
+          : w.weekendAvg < w.weekdayAvg
+            ? `weekdays (+${formatCurrency(w.weekdayAvg - w.weekendAvg)} per txn)`
+            : 'both equally';
+      msgs.push(`Spending skews towards ${bias}.`);
+    }
+    const peaks = insights.seasonal?.categoryPeaks || [];
+    peaks.slice(0, 2).forEach((p) => msgs.push(`${p.category} peaked in ${p.peakMonth}.`));
+    return msgs.slice(0, 8);
+  }, [insights]);
 
   if (loading) {
     return (
@@ -290,8 +316,10 @@ const BehaviourDashboard = () => {
     <div className="ai-page">
       <header className="ai-header">
         <div className="ai-header-top">
-          <button className="ai-back-btn" onClick={() => navigate(-1)} type="button">
-            <LucideArrowLeft size={18} />
+          <button className="back-link" onClick={() => navigate(-1)} type="button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
             Back to Dashboard
           </button>
           <div className="ai-badge">
@@ -413,6 +441,35 @@ const BehaviourDashboard = () => {
               </div>
             </div>
           </motion.div>
+        </motion.section>
+
+        <motion.section
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+          className="ai-card"
+        >
+          <div className="ai-card-header">
+            <div>
+              <p className="ai-eyebrow">Smart feed</p>
+              <h2>AI Insights</h2>
+            </div>
+            <div className="ai-icon-pill ai-icon-indigo">
+              <LucideLightbulb size={18} />
+            </div>
+          </div>
+          <div className="ai-stack">
+            {insightMessages.length === 0 ? (
+              <div className="ai-pattern-card">No insights yet. Add more transactions to unlock analysis.</div>
+            ) : (
+              insightMessages.map((msg, idx) => (
+                <div key={`insight-${idx}`} className="ai-pattern-card">
+                  <p>{msg}</p>
+                </div>
+              ))
+            )}
+          </div>
         </motion.section>
 
         <motion.section

@@ -1,7 +1,8 @@
 const crypto = require('crypto');
 
 const generateOtp = () => {
-  const value = Math.floor(100000 + Math.random() * 900000);
+  // Use cryptographically secure random integer for security
+  const value = crypto.randomInt(100000, 1000000);
   return String(value);
 };
 

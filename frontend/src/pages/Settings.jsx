@@ -1,27 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Link } from 'react-router-dom';
+import AppNavbar from '../components/AppNavbar';
 import './Settings.css';
+import { FaWallet, FaBullseye, FaArrowLeft, FaCheck, FaExclamationTriangle, FaTimes } from 'react-icons/fa';
 
 const Settings = () => {
   const { user, loading, updateProfile } = useAuth();
   const lastUserIdRef = useRef(null);
   const [status, setStatus] = useState({ type: '', message: '' });
   const [isSaving, setIsSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
   const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    phoneNumber: '',
-    department: '',
-    year: '1st',
-    currency: 'USD',
-    dateFormat: 'MM/DD/YYYY',
-    language: 'English',
     incomeFrequency: 'Monthly',
     incomeSources: '',
     priorities: 'Saving',
     riskTolerance: 'Moderate'
   });
+
+  /* Removed isEditing state */
 
   useEffect(() => {
     if (!user) {
@@ -29,33 +26,38 @@ const Settings = () => {
       return;
     }
     if (lastUserIdRef.current === user._id) return;
-    setFormData((prev) => ({
-      ...prev,
-      fullName: user.fullName || '',
-      email: user.email || '',
-      phoneNumber: user.phoneNumber || '',
-      department: user.department || '',
-      year: user.year || '1st'
-    }));
+
+    const initialData = {
+      incomeFrequency: user.incomeFrequency || 'Monthly',
+      incomeSources: user.incomeSources || '',
+      priorities: user.priorities || 'Saving',
+      riskTolerance: user.riskTolerance || 'Moderate'
+    };
+
+    setFormData(initialData);
     lastUserIdRef.current = user._id;
+    setHasChanges(false);
   }, [user]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    setHasChanges(true);
+    setStatus({ type: '', message: '' });
   };
+
+  /* Removed handleEdit */
 
   const handleReset = () => {
     if (!user) return;
     setStatus({ type: '', message: '' });
-    setFormData((prev) => ({
-      ...prev,
-      fullName: user.fullName || '',
-      email: user.email || '',
-      phoneNumber: user.phoneNumber || '',
-      department: user.department || '',
-      year: user.year || '1st'
-    }));
+    setFormData({
+      incomeFrequency: user.incomeFrequency || 'Monthly',
+      incomeSources: user.incomeSources || '',
+      priorities: user.priorities || 'Saving',
+      riskTolerance: user.riskTolerance || 'Moderate'
+    });
+    setHasChanges(false);
   };
 
   const handleSave = async (event) => {
@@ -63,196 +65,234 @@ const Settings = () => {
     if (!user || isSaving) return;
     setIsSaving(true);
     setStatus({ type: '', message: '' });
+
     try {
       const payload = {
-        fullName: formData.fullName,
-        phoneNumber: formData.phoneNumber,
-        department: formData.department,
-        year: formData.year
+        incomeFrequency: formData.incomeFrequency,
+        incomeSources: formData.incomeSources,
+        priorities: formData.priorities,
+        riskTolerance: formData.riskTolerance
       };
+
       const data = await updateProfile(payload);
+
       if (data?.success) {
-        setFormData((prev) => ({
-          ...prev,
-          fullName: data.user?.fullName || '',
-          email: data.user?.email || '',
-          phoneNumber: data.user?.phoneNumber || '',
-          department: data.user?.department || '',
-          year: data.user?.year || '1st'
-        }));
-        setStatus({ type: 'success', message: 'Profile updated successfully.' });
+        setFormData({
+          incomeFrequency: data.user?.incomeFrequency || 'Monthly',
+          incomeSources: data.user?.incomeSources || '',
+          priorities: data.user?.priorities || 'Saving',
+          riskTolerance: data.user?.riskTolerance || 'Moderate'
+        });
+        setStatus({
+          type: 'success',
+          message: 'Your financial profile has been updated successfully!'
+        });
+        setHasChanges(false);
+
+        setTimeout(() => {
+          setStatus({ type: '', message: '' });
+        }, 5000);
       } else {
-        setStatus({ type: 'error', message: data?.message || 'Unable to save changes.' });
+        setStatus({
+          type: 'error',
+          message: data?.message || 'Unable to save changes. Please try again.'
+        });
       }
     } catch (error) {
-      const message = error?.response?.data?.message || 'Unable to save changes.';
+      const message = error?.response?.data?.message || 'Unable to save changes. Please try again.';
       setStatus({ type: 'error', message });
     } finally {
       setIsSaving(false);
     }
   };
 
-  const userInitials = formData.fullName
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('') || 'U';
+  const fieldInfo = {
+    incomeFrequency: 'How often you receive income',
+    incomeSources: 'e.g., Salary, Freelance, Investments',
+    priorities: 'Your primary financial goal',
+    riskTolerance: 'Your comfort level with investment risk'
+  };
 
   return (
     <div className="settings-page">
-      <header className="settings-header">
-        <div>
-          <span className="eyebrow">Settings</span>
-          <h1>Personalize Your Dashboard</h1>
-          <p>Update personal details, preferences, and financial profile to sharpen insights.</p>
-        </div>
-        <Link to="/dashboard" className="btn-secondary">
-          Back to Dashboard
-        </Link>
-      </header>
+      <AppNavbar />
 
-      <section className="settings-section">
-        <div className="section-heading">
-          <h2>User Profile</h2>
-          <p>Personal information and display preferences.</p>
-        </div>
-        <div className="profile-card">
-          <div className="avatar-block">
-            <div className="avatar-circle">{userInitials}</div>
-            <button className="btn-secondary">Change Avatar</button>
-          </div>
-          <div className="profile-form">
-            <label>
-              Name
-              <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} />
-            </label>
-            <label>
-              Email
-              <input type="email" name="email" value={formData.email} disabled />
-            </label>
-            <label>
-              Phone
-              <input
-                type="tel"
-                name="phoneNumber"
-                value={formData.phoneNumber}
-                onChange={handleChange}
-              />
-            </label>
-            <label>
-              Department
-              <input
-                type="text"
-                name="department"
-                value={formData.department}
-                onChange={handleChange}
-              />
-            </label>
-            <label>
-              Year
-              <select name="year" value={formData.year} onChange={handleChange}>
-                <option value="1st">1st</option>
-                <option value="2nd">2nd</option>
-                <option value="3rd">3rd</option>
-                <option value="4th">4th</option>
-                <option value="5th">5th</option>
-              </select>
-            </label>
-            <label>
-              Currency
-              <select name="currency" value={formData.currency} onChange={handleChange}>
-                <option value="INR">INR (Rs)</option>
-                <option value="USD">USD ($)</option>
-                <option value="EUR">EUR (EUR)</option>
-                <option value="GBP">GBP (GBP)</option>
-              </select>
-            </label>
-            <label>
-              Date Format
-              <select name="dateFormat" value={formData.dateFormat} onChange={handleChange}>
-                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-              </select>
-            </label>
-            <label>
-              Language
-              <select name="language" value={formData.language} onChange={handleChange}>
-                <option>English</option>
-                <option>Hindi</option>
-                <option>Spanish</option>
-                <option>French</option>
-              </select>
-            </label>
-          </div>
-        </div>
-      </section>
+      <div className="settings-container">
+        {/* Header */}
+        <header className="settings-header">
+          <Link to="/dashboard" className="back-link">
+            <FaArrowLeft />
+            Back to Dashboard
+          </Link>
 
-      <section className="settings-section">
-        <div className="section-heading">
-          <h2>Financial Profile</h2>
-          <p>Optional details to improve insights and recommendations.</p>
-        </div>
-        <div className="profile-card">
-          <div className="profile-form">
-            <label>
-              Income Frequency
-              <select name="incomeFrequency" value={formData.incomeFrequency} onChange={handleChange}>
-                <option>Monthly</option>
-                <option>Bi-Weekly</option>
-                <option>Weekly</option>
-                <option>Quarterly</option>
-              </select>
-            </label>
-            <label>
-              Income Sources
-              <input
-                type="text"
-                name="incomeSources"
-                value={formData.incomeSources}
-                onChange={handleChange}
-              />
-            </label>
-            <label>
-              Financial Priorities
-              <select name="priorities" value={formData.priorities} onChange={handleChange}>
-                <option>Saving</option>
-                <option>Investing</option>
-                <option>Debt Payoff</option>
-                <option>Balanced</option>
-              </select>
-            </label>
-            <label>
-              Risk Tolerance
-              <select name="riskTolerance" value={formData.riskTolerance} onChange={handleChange}>
-                <option>Conservative</option>
-                <option>Moderate</option>
-                <option>Aggressive</option>
-              </select>
-            </label>
+          <div className="header-content">
+            <span className="eyebrow">Configuration</span>
+            <h1>Financial Profile</h1>
+            <p>Customize your financial preferences to get personalized insights and recommendations tailored to your goals.</p>
           </div>
-        </div>
-      </section>
+        </header>
 
-      <form className="settings-actions" onSubmit={handleSave}>
+        {/* Status Messages */}
         {status.message && (
-          <div className={`settings-status ${status.type}`}>{status.message}</div>
+          <div className={`status-message ${status.type}`}>
+            <div className="status-icon">
+              {status.type === 'success' ? <FaCheck /> : <FaExclamationTriangle />}
+            </div>
+            <p>{status.message}</p>
+            <button onClick={() => setStatus({ type: '', message: '' })} className="close-status">
+              <FaTimes />
+            </button>
+          </div>
         )}
-        <div className="settings-actions-buttons">
-          <button
-            className="btn-secondary"
-            type="button"
-            onClick={handleReset}
-            disabled={loading || isSaving || !user}
-          >
-            Cancel
-          </button>
-          <button className="btn-primary" type="submit" disabled={loading || isSaving || !user}>
-            {isSaving ? 'Saving...' : 'Save Changes'}
-          </button>
+
+        <form onSubmit={handleSave} className="settings-form">
+          {/* Income Information Section */}
+          <section className="settings-card">
+            <div className="card-header">
+              <div className="card-icon blue">
+                <FaWallet />
+              </div>
+              <div>
+                <h2>Income Information</h2>
+                <p>Help us understand your income patterns</p>
+              </div>
+            </div>
+
+            <div className="form-grid">
+              {/* Income Frequency */}
+              <div className="form-group">
+                <label htmlFor="incomeFrequency">
+                  Income Frequency <span className="required">*</span>
+                </label>
+                <p className="field-info">{fieldInfo.incomeFrequency}</p>
+                <div className="select-wrapper">
+                  <select
+                    id="incomeFrequency"
+                    name="incomeFrequency"
+                    value={formData.incomeFrequency}
+                    onChange={handleChange}
+                  >
+                    <option value="Monthly">Monthly</option>
+                    <option value="Bi-Weekly">Bi-Weekly</option>
+                    <option value="Weekly">Weekly</option>
+                    <option value="Quarterly">Quarterly</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Income Sources */}
+              <div className="form-group">
+                <label htmlFor="incomeSources">Income Sources</label>
+                <p className="field-info">{fieldInfo.incomeSources}</p>
+                <input
+                  id="incomeSources"
+                  type="text"
+                  name="incomeSources"
+                  value={formData.incomeSources}
+                  onChange={handleChange}
+                  placeholder="Enter your income sources"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Financial Goals Section */}
+          <section className="settings-card">
+            <div className="card-header">
+              <div className="card-icon purple">
+                <FaBullseye />
+              </div>
+              <div>
+                <h2>Financial Goals & Preferences</h2>
+                <p>Define your financial priorities and risk appetite</p>
+              </div>
+            </div>
+
+            <div className="form-grid">
+              {/* Financial Priorities */}
+              <div className="form-group">
+                <label htmlFor="priorities">
+                  Financial Priorities <span className="required">*</span>
+                </label>
+                <p className="field-info">{fieldInfo.priorities}</p>
+                <div className="select-wrapper">
+                  <select
+                    id="priorities"
+                    name="priorities"
+                    value={formData.priorities}
+                    onChange={handleChange}
+                  >
+                    <option value="Saving">Saving</option>
+                    <option value="Investing">Investing</option>
+                    <option value="Debt Payoff">Debt Payoff</option>
+                    <option value="Balanced">Balanced</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Risk Tolerance */}
+              <div className="form-group">
+                <label htmlFor="riskTolerance">
+                  Risk Tolerance <span className="required">*</span>
+                </label>
+                <p className="field-info">{fieldInfo.riskTolerance}</p>
+                <div className="select-wrapper">
+                  <select
+                    id="riskTolerance"
+                    name="riskTolerance"
+                    value={formData.riskTolerance}
+                    onChange={handleChange}
+                  >
+                    <option value="Conservative">Conservative</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="Aggressive">Aggressive</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </section>
+        </form>
+
+        {/* Static Footer */}
+        <div className="settings-footer">
+          <div className="footer-content">
+            <div className="unsaved-changes">
+              {hasChanges && (
+                <>
+                  <FaExclamationTriangle />
+                  <span>You have unsaved changes</span>
+                </>
+              )}
+            </div>
+
+            <div className="footer-actions">
+              <button
+                type="button"
+                onClick={handleReset}
+                disabled={loading || isSaving || !user || !hasChanges}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                onClick={handleSave}
+                disabled={loading || isSaving || !user || !hasChanges}
+                className="btn-primary"
+              >
+                {isSaving ? (
+                  <>
+                    <div className="spinner-small"></div>
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
+              </button>
+            </div>
+          </div>
         </div>
-      </form>
+      </div>
     </div>
   );
 };

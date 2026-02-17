@@ -14,6 +14,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  avatar: {
+    type: String,
+    default: ''
+  },
   email: {
     type: String,
     required: [true, 'Email is required'],
@@ -60,6 +64,36 @@ const userSchema = new mongoose.Schema({
     enum: ['1st', '2nd', '3rd', '4th', '5th'],
     default: '1st'
   },
+  // Profile Settings
+  currency: {
+    type: String,
+    default: 'USD'
+  },
+  dateFormat: {
+    type: String,
+    default: 'MM/DD/YYYY'
+  },
+  language: {
+    type: String,
+    default: 'English'
+  },
+  // Financial Settings
+  incomeFrequency: {
+    type: String,
+    default: 'Monthly'
+  },
+  incomeSources: {
+    type: String,
+    default: ''
+  },
+  priorities: {
+    type: String,
+    default: 'Saving'
+  },
+  riskTolerance: {
+    type: String,
+    default: 'Moderate'
+  },
   walletBalance: {
     type: Number,
     default: 0
@@ -84,26 +118,26 @@ userSchema.index(
   { unique: true, partialFilterExpression: { googleId: { $type: 'string', $ne: '' } } }
 );
 
-userSchema.pre('save', function(next) {
+userSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });
 
-userSchema.methods.setPassword = async function(password) {
+userSchema.methods.setPassword = async function (password) {
   const salt = await bcrypt.genSalt(10);
   this.passwordHash = await bcrypt.hash(password, salt);
 };
 
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
   if (!this.passwordHash) return false;
   return bcrypt.compare(candidatePassword, this.passwordHash);
 };
 
-userSchema.statics.generateStudentId = function() {
+userSchema.statics.generateStudentId = function () {
   return `STU${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
 };
 
-userSchema.statics.createWithUniqueStudentId = async function(data, maxRetries = 5) {
+userSchema.statics.createWithUniqueStudentId = async function (data, maxRetries = 5) {
   for (let attempt = 0; attempt < maxRetries; attempt += 1) {
     try {
       const studentId = this.generateStudentId();
@@ -119,7 +153,7 @@ userSchema.statics.createWithUniqueStudentId = async function(data, maxRetries =
   throw new Error('Failed to generate a unique student ID');
 };
 
-userSchema.statics.saveWithUniqueStudentId = async function(user, maxRetries = 5) {
+userSchema.statics.saveWithUniqueStudentId = async function (user, maxRetries = 5) {
   for (let attempt = 0; attempt < maxRetries; attempt += 1) {
     try {
       if (!user.studentId) {

@@ -9,6 +9,8 @@ const {
   verifyRefreshToken,
   getTokenExpirationDate
 } = require('../utils/tokens');
+const cloudinary = require('../config/cloudinary');
+const getDataUri = require('../utils/dataUri');
 
 const registerSchema = z.object({
   studentId: z.string().trim().min(1, 'Student ID is required'),
@@ -29,7 +31,14 @@ const updateProfileSchema = z.object({
   fullName: z.string().trim().optional(),
   phoneNumber: z.string().trim().optional(),
   department: z.string().trim().optional(),
-  year: z.enum(['1st', '2nd', '3rd', '4th', '5th']).optional()
+  year: z.enum(['1st', '2nd', '3rd', '4th', '5th']).optional(),
+  currency: z.string().optional(),
+  dateFormat: z.string().optional(),
+  language: z.string().optional(),
+  incomeFrequency: z.string().optional(),
+  incomeSources: z.string().optional(),
+  priorities: z.string().optional(),
+  riskTolerance: z.string().optional()
 });
 
 const cookieOptions = () => {
@@ -69,7 +78,16 @@ const safeUser = (user) => ({
   phoneNumber: user.phoneNumber,
   walletBalance: user.walletBalance,
   provider: user.provider,
-  emailVerified: user.emailVerified
+  emailVerified: user.emailVerified,
+  avatar: user.avatar,
+  currency: user.currency,
+  dateFormat: user.dateFormat,
+  language: user.language,
+
+  incomeFrequency: user.incomeFrequency,
+  incomeSources: user.incomeSources,
+  priorities: user.priorities,
+  riskTolerance: user.riskTolerance
 });
 
 const sendVerificationOtp = async (user) => {
@@ -110,7 +128,7 @@ const register = async (req, res) => {
     if (existing) {
       return res.status(400).json({
         success: false,
-        message: 'User already exists with this email or student ID'
+        message: 'Registration failed. Please check your details.'
       });
     }
 
@@ -374,11 +392,33 @@ const updateProfile = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    const { fullName, phoneNumber, department, year } = parsed.data;
+    if (req.file) {
+      const fileUri = getDataUri(req.file);
+      const myCloud = await cloudinary.uploader.upload(fileUri.content);
+      user.avatar = myCloud.secure_url;
+    }
+
+    const {
+      fullName, phoneNumber, department, year,
+      currency, dateFormat, language,
+      incomeFrequency, incomeSources, priorities, riskTolerance
+    } = parsed.data;
+
     if (fullName !== undefined) user.fullName = fullName.trim();
     if (phoneNumber !== undefined) user.phoneNumber = phoneNumber.trim();
     if (department !== undefined) user.department = department.trim();
     if (year !== undefined) user.year = year;
+
+    // Profile Settings
+    if (currency !== undefined) user.currency = currency;
+    if (dateFormat !== undefined) user.dateFormat = dateFormat;
+    if (language !== undefined) user.language = language;
+
+    // Financial Settings
+    if (incomeFrequency !== undefined) user.incomeFrequency = incomeFrequency;
+    if (incomeSources !== undefined) user.incomeSources = incomeSources;
+    if (priorities !== undefined) user.priorities = priorities;
+    if (riskTolerance !== undefined) user.riskTolerance = riskTolerance;
 
     await user.save();
 

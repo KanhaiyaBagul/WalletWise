@@ -1,0 +1,22 @@
+name: Daily due-date reminders (by difficulty)
+
+on:
+  schedule:
+    - cron: "0 4 * * *" # 09:30 IST
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run reminder script
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fn = require('./.github/scripts/difficultyReminder.js');
+            await fn({ github, context });

@@ -27,6 +27,9 @@ WalletWise transforms raw financial data into actionable intelligence, helping u
 
 ---
 
+⚠️ **Current Status:** WalletWise is under active development. Core transaction tracking and monthly budgeting features are implemented. Predictive budgeting, AI behaviour analysis, and the decision helper module are planned and currently in progress.
+
+
 ## 🚀 Why WalletWise Exists
 
 Most financial tools fail at one crucial point:
@@ -242,7 +245,7 @@ To act as a **financial checkpoint** before a purchase is made.
 
 #### 🔍 Decision Inputs
 
-The system evaluates:
+**The system evaluates:**
 
 | Factor | Assessment |
 |--------|------------|
@@ -307,7 +310,6 @@ WalletWise is designed for:
 | **Frontend** | React.js, TailwindCSS |
 | **Backend** | Node.js, Express.js |
 | **Database** | MongoDB |
-| **AI/ML** | Python, TensorFlow/scikit-learn |
 | **Authentication** | JWT, OAuth 2.0 |
 | **Deployment** | Docker, AWS/Vercel |
 
@@ -322,23 +324,57 @@ WalletWise is designed for:
 
 ## Installation
 
-### Frontend Setup
-
-The frontend application is located inside the `frontend/` directory.  
-All npm commands must be executed from this directory.
+### 1. Clone the Repository
 
 ```bash
-# Clone the repository
 git clone https://github.com/SoumyaMishra-7/WalletWise.git
+cd WalletWise
+```
 
-# Navigate to frontend directory
-cd WalletWise/frontend
+### 2. Backend Setup
+
+The backend serves the API and connects to MongoDB.
+
+```bash
+# Navigate to backend directory
+cd backend
+
+# Install dependencies
+npm install
+
+# Configure Environment Variables
+# Create a .env file in the backend directory based on .env.example
+cp .env.example .env
+
+# Edit .env and add your MongoDB URI, JWT secrets, and Google OAuth credentials
+# nano .env
+
+# Start the backend server
+# For development (using nodemon):
+npm run dev
+
+# For production:
+# npm start
+```
+
+The server will start on `http://localhost:5000` by default.
+
+### 3. Frontend Setup
+
+The frontend application is built with React.
+
+```bash
+# Navigate to frontend directory (from root)
+cd ../frontend
 
 # Install dependencies
 npm install
 
 # Start the development server
 npm start
+```
+
+The application will open at `http://localhost:3000`.
 
 
 ---

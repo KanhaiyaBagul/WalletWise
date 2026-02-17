@@ -1,46 +1,23 @@
 const express = require('express');
 const router = express.Router();
-const Transaction = require('../models/Transactions');
+const { protect } = require('../middleware/auth');
+const validate = require('../middleware/validate');
+const { transactionSchema } = require('../utils/validationSchemas');
 
-// Add transaction (both income and expense)
-router.post('/', async (req, res) => {
-  try {
-    const { type, amount, category, description, paymentMethod, date, mood } = req.body;
-    
-    console.log('📥 Received transaction data:', { type, amount, category, description, paymentMethod, date, mood });
-    
-    // Validate required fields
-    if (!type || !amount || !category) {
-      return res.status(400).json({ message: 'Type, amount, and category are required' });
-    }
-    
-    // Validate type
-    if (!['income', 'expense'].includes(type)) {
-      return res.status(400).json({ message: 'Type must be either income or expense' });
-    }
-    
-    const transaction = new Transaction({
-      userId: req.userId, // Assuming you have user authentication
-      type,
-      amount: type === 'income' ? Math.abs(amount) : -Math.abs(amount), // Store negative for expenses
-      category,
-      description,
-      paymentMethod,
-      date: date || new Date(),
-      mood: mood || 'neutral'
-    });
-    
-    await transaction.save();
-    
-    // Update user's balance if needed
-    // You might want to update the user's total balance here
-    
-    res.status(201).json({
-      message: 'Transaction added successfully',
-      transaction
-    });
-  } catch (error) {
-    console.error('Error adding transaction:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+// Import the controller object
+const transactionController = require('../controllers/transactionController');
+
+// Add transaction 
+router.post('/', protect, validate(transactionSchema), transactionController.addTransaction);
+
+// Get all transactions
+router.get('/', protect, transactionController.getAllTransactions);
+
+// Update transaction
+router.put('/:id', protect, validate(transactionSchema), transactionController.updateTransaction);
+
+// Delete transaction
+router.delete('/:id', protect, transactionController.deleteTransaction);
+
+module.exports = router;
+

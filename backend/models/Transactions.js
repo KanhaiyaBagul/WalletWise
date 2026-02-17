@@ -1,5 +1,6 @@
 // models/Transaction.js
 const mongoose = require('mongoose');
+const { CATEGORIES } = require('../constants/categories');
 
 const transactionSchema = new mongoose.Schema({
   userId: {
@@ -19,7 +20,7 @@ const transactionSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['food', 'transport', 'shopping', 'entertainment', 'education', 'healthcare', 'housing', 'other'],
+    enum: CATEGORIES,
     required: true
   },
   description: {
@@ -41,5 +42,10 @@ const transactionSchema = new mongoose.Schema({
     default: 'neutral'
   }
 }, { timestamps: true });
+
+// Indexes for analytics performance
+transactionSchema.index({ userId: 1, type: 1, date: -1 });
+transactionSchema.index({ userId: 1, category: 1 });
+transactionSchema.index({ userId: 1, description: 1 });
 
 module.exports = mongoose.model('Transaction', transactionSchema);
