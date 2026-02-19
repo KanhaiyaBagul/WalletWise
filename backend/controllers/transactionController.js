@@ -23,7 +23,17 @@ const withTransaction = async (operation) => {
 const addTransaction = async (req, res) => {
     try {
         const userId = req.userId;
-        const { type, amount, category, description, paymentMethod, mood, date } = req.body;
+        const {
+    type,
+    amount,
+    category,
+    description,
+    paymentMethod,
+    mood,
+    date,
+    isRecurring,
+    recurringInterval
+} = req.body;
 
         if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
@@ -40,17 +50,42 @@ const addTransaction = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Type must be either income or expense' });
         }
 
-        await withTransaction(async (session) => {
-            const transaction = new Transaction({
-                userId,
-                type,
-                amount: numericAmount,
-                category: typeof category === 'string' ? category.trim().toLowerCase() : category,
-                description: typeof description === 'string' ? description.trim() : description,
-                paymentMethod: paymentMethod || 'cash',
-                mood: mood || 'neutral',
-                ...(date ? { date } : {})
-            });
+await withTransaction(async (session) => {
+
+    let nextExecutionDate = null;
+
+    if (isRecurring && recurringInterval) {
+        const now = new Date();
+
+        if (recurringInterval === "daily") {
+            now.setDate(now.getDate() + 1);
+        } else if (recurringInterval === "weekly") {
+            now.setDate(now.getDate() + 7);
+        } else if (recurringInterval === "monthly") {
+            now.setMonth(now.getMonth() + 1);
+        }
+
+        nextExecutionDate = now;
+    }
+
+    const transaction = new Transaction({
+        userId,
+        type,
+        amount: numericAmount,
+        category: typeof category === 'string' ? category.trim().toLowerCase() : category,
+        description: typeof description === 'string' ? description.trim() : description,
+        paymentMethod: paymentMethod || 'cash',
+        mood: mood || 'neutral',
+        ...(date ? { date } : {}),
+        isRecurring: isRecurring || false,
+        recurringInterval: recurringInterval || null,
+        nextExecutionDate
+    });
+
+    await transaction.save({ session });
+
+});
+
 
             await transaction.save({ session });
 
@@ -117,6 +152,42 @@ const getAllTransactions = async (req, res) => {
         } = req.query;
 
         const query = { userId };
+        // ===== Process recurring transactions =====
+const recurringTransactions = await Transaction.find({
+    userId,
+    isRecurring: true,
+    nextExecutionDate: { $lte: new Date() }
+});
+
+for (const rt of recurringTransactions) {
+    const newTransaction = new Transaction({
+        userId: rt.userId,
+        type: rt.type,
+        amount: rt.amount,
+        category: rt.category,
+        description: rt.description,
+        paymentMethod: rt.paymentMethod,
+        mood: rt.mood,
+        date: new Date()
+    });
+
+    await newTransaction.save();
+
+    // Update next execution date
+    let nextDate = new Date(rt.nextExecutionDate);
+
+    if (rt.recurringInterval === "daily") {
+        nextDate.setDate(nextDate.getDate() + 1);
+    } else if (rt.recurringInterval === "weekly") {
+        nextDate.setDate(nextDate.getDate() + 7);
+    } else if (rt.recurringInterval === "monthly") {
+        nextDate.setMonth(nextDate.getMonth() + 1);
+    }
+
+    rt.nextExecutionDate = nextDate;
+    await rt.save();
+}
+
 
         // Apply filters
         if (type && type !== 'all') {
@@ -170,7 +241,9 @@ const getAllTransactions = async (req, res) => {
                 description: t.description,
                 date: t.date,
                 paymentMethod: t.paymentMethod,
-                mood: t.mood
+                mood: t.mood,
+                isRecurring: t.isRecurring,
+                recurringInterval: t.recurringInterval
             })),
             pagination: {
                 total: totalOptions,

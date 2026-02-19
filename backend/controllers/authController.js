@@ -144,15 +144,25 @@ const register = async (req, res) => {
       emailVerified: false
     });
     await user.setPassword(password);
-    await User.saveWithUniqueStudentId(user);
-    await sendVerificationOtp(user);
+await User.saveWithUniqueStudentId(user);
 
-    return res.status(201).json({
-      success: true,
-      message: 'Registration successful. Please verify your email.',
-      requiresVerification: true,
-      email: user.email
-    });
+// ✅ Skip email verification for local testing
+user.emailVerified = true;
+await user.save();
+
+const accessToken = signAccessToken(user);
+const refreshToken = signRefreshToken(user);
+user.refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+await user.save();
+
+setAuthCookies(res, accessToken, refreshToken);
+
+return res.status(201).json({
+  success: true,
+  message: 'Registration successful',
+  user: safeUser(user)
+});
+
   } catch (error) {
     console.error('Registration error:', error);
     return res.status(500).json({
