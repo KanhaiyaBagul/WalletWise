@@ -10,11 +10,12 @@ import SetBudget from '../pages/SetBudget';
 import SavingGoal from '../pages/SavingGoal';
 import {
   FaWallet, FaSignOutAlt, FaUserCircle, FaChevronDown,
-  FaMoneyBillWave, FaChartLine, FaPiggyBank,
+  FaMoneyBillWave, FaChartLine, FaPiggyBank, FaPlusCircle,
   FaHandHoldingUsd, FaBullseye, FaChartBar, FaExclamationTriangle,
-  FaBrain, FaArrowUp, FaCalendarAlt,
-  FaSync, FaHome, FaExchangeAlt,
-  FaCog, FaChartPie, FaEdit, FaTrash, FaCalendarCheck, FaBell, FaSun, FaMoon, FaMagic
+  FaBrain, FaArrowUp, FaArrowDown, FaCalendarAlt,
+  FaSync, FaExclamationCircle, FaHome, FaExchangeAlt,
+  FaCog, FaChartPie, FaEdit, FaTrash, FaCalendarCheck, FaBell,
+  FaSun, FaMoon, FaMagic, FaCreditCard, FaFileAlt, FaFilter, FaSearch
 } from 'react-icons/fa';
 import { useTheme } from '../context/ThemeContext';
 import { Line, Pie } from 'react-chartjs-2';
@@ -674,6 +675,7 @@ const Dashboard = () => {
           <div className="dashboard-header-left">
             <h1 className="dashboard-title">Dashboard</h1>
             <div className="greeting-section">
+              {/* FIXED: Single span for greeting text */}
               <h2 className="greeting-text">
                 Good {timeOfDay}, <span className="user-name">{user?.fullName || user?.name}</span>!
               </h2>
