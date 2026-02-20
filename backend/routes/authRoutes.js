@@ -7,7 +7,10 @@ const {
   userLoginSchema,
   userUpdateSchema,
   verifyEmailSchema,
-  resendOtpSchema
+  resendOtpSchema,
+  forgotPasswordRequestSchema,
+  forgotPasswordVerifySchema,
+  resetPasswordSchema
 } = require('../utils/validationSchemas');
 const authController = require('../controllers/authController');
 
@@ -21,10 +24,18 @@ const authLimiter = rateLimit({
   message: 'Too many attempts. Please try again later.'
 });
 
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 30,
+  message: 'Too many attempts from this IP. Please try again in 5 minutes.'
+});
+
 router.post('/register', authLimiter, validate(userRegisterSchema), authController.register);
 router.post('/login', authLimiter, validate(userLoginSchema), authController.login);
 router.post('/verify-email', authLimiter, validate(verifyEmailSchema), authController.verifyEmail);
 router.post('/resend-otp', authLimiter, validate(resendOtpSchema), authController.resendEmailOtp);
+router.post('/forgot-password', authLimiter, authController.forgotPassword);
+router.post('/reset-password', authLimiter, authController.resetPassword);
 router.post('/logout', authController.logout);
 router.post('/refresh', authController.refresh);
 router.get('/me', protect, authController.me);

@@ -1,5 +1,6 @@
 const Transaction = require('../models/Transactions');
 const Subscription = require('../models/Subscription');
+const Budget = require('../models/Budget');
 
 const startOfWeek = (d) => {
   const date = new Date(d);
@@ -515,11 +516,96 @@ const getInsightsSummary = async (req, res) => {
   }
 };
 
+const evaluatePurchase = async (req, res) => {
+  try {
+    const { itemName, category, cost, mood } = req.body;
+    const userId = req.userId;
+    const amount = Number(cost);
+
+    if (isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid purchase amount' });
+    }
+
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+    const [budget, txs, subs] = await Promise.all([
+      Budget.findOne({ userId, month: currentMonth, isActive: true }),
+      Transaction.find({ userId, type: 'expense', date: { $gte: startOfMonth } }),
+      Subscription.find({ userId, isActive: true })
+    ]);
+
+    const totalSpent = txs.reduce((sum, t) => sum + (t.amount || 0), 0);
+    const budgetLimit = budget ? budget.totalBudget : 0;
+    const budgetLeft = budgetLimit - totalSpent;
+
+    // Upcoming critical obligations (next 15 days)
+    const today = new Date();
+    const in15Days = new Date(today);
+    in15Days.setDate(today.getDate() + 15);
+
+    const upcomingBills = subs
+      .filter(s => s.nextDueDate && s.nextDueDate >= today && s.nextDueDate <= in15Days)
+      .reduce((sum, s) => sum + (s.amount || 0), 0);
+
+    const safetyMargin = budgetLeft - upcomingBills;
+
+    let status = 'Affordable';
+    let color = 'emerald';
+    let recommendation = '';
+    let factors = [];
+
+    if (amount > budgetLeft) {
+      status = 'Not Recommended';
+      color = 'rose';
+      recommendation = `This exceeds your remaining budget of ${budgetLeft.toFixed(0)} for this month.`;
+      factors.push('Exceeds monthly limit');
+    } else if (amount > safetyMargin) {
+      status = 'Risky';
+      color = 'amber';
+      recommendation = `You have enough now, but you have ${upcomingBills.toFixed(0)} in upcoming bills soon.`;
+      factors.push('High impact on upcoming bills');
+    } else {
+      status = 'Affordable';
+      color = 'emerald';
+      recommendation = 'Your budget can comfortably handle this purchase.';
+      factors.push('Within safe spending limits');
+    }
+
+    // Mood factoring
+    const impulsiveMoods = ['stressed', 'bored', 'sad'];
+    if (impulsiveMoods.includes(mood?.toLowerCase())) {
+      recommendation += ' However, since you feel a bit low/impulsive, consider waiting 24 hours to see if you still want it.';
+      factors.push('Impulsive mood detected');
+    }
+
+    res.json({
+      success: true,
+      evaluation: {
+        status,
+        color,
+        recommendation,
+        factors,
+        metrics: {
+          budgetLeft,
+          upcomingBills,
+          safetyMargin,
+          purchaseImpact: (amount / (budgetLimit || 1)) * 100
+        }
+      }
+    });
+  } catch (error) {
+    console.error('evaluatePurchase error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   getAnomalies,
   getSubscriptionAlerts,
   getSeasonal,
   getWeekendWeekday,
-  getInsightsSummary
+  getInsightsSummary,
+  evaluatePurchase
 };
 

@@ -39,8 +39,35 @@ const userSchema = new mongoose.Schema({
   emailOtpSentAt: {
     type: Date
   },
+  passwordResetOtpHash: {
+    type: String
+  },
+  passwordResetOtpExpires: {
+    type: Date
+  },
+  passwordResetOtpSentAt: {
+    type: Date
+  },
+  passwordResetTokenHash: {
+    type: String
+  },
+  passwordResetTokenExpires: {
+    type: Date
+  },
+  passwordResetTokenSentAt: {
+    type: Date
+  },
   passwordHash: {
     type: String
+  },
+  passwordResetOtpHash: {
+    type: String
+  },
+  passwordResetOtpExpires: {
+    type: Date
+  },
+  passwordResetOtpSentAt: {
+    type: Date
   },
   provider: {
     type: String,

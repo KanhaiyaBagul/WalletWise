@@ -14,6 +14,8 @@ import {
   FaHandHoldingUsd, FaBullseye, FaChartBar, FaExclamationTriangle,
   FaBrain, FaArrowUp, FaArrowDown, FaCalendarAlt,
   FaSync, FaExclamationCircle, FaHome, FaExchangeAlt,
+  FaCog, FaChartPie, FaEdit, FaTrash, FaCalendarCheck, FaBell,
+  FaSun, FaMoon, FaMagic, FaCreditCard, FaFileAlt, FaFilter, FaSearch
   FaCog, FaChartPie, FaCreditCard, FaFileAlt, FaBell,
   FaFilter, FaSearch
 } from 'react-icons/fa';
@@ -616,6 +618,17 @@ const Dashboard = () => {
               >
                 <FaBrain className="ai-icon" />
                 <span>AI Insights</span>
+              </button>
+
+              <button
+                className="ai-insights-btn"
+                onClick={() => navigate('/decision-helper')}
+                title="AI-powered purchase advisor"
+                aria-label="Decision Helper"
+                style={{ background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', color: 'white', border: 'none' }}
+              >
+                <FaMagic className="ai-icon" />
+                <span>Decision Helper</span>
               </button>
             </div>
           </div>

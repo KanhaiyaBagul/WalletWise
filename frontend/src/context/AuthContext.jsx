@@ -26,25 +26,11 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
       }
     } catch (error) {
-      const refreshed = await refreshSession();
-      if (refreshed) {
-        try {
-          const { data } = await api.get('/api/auth/me');
-          if (data?.success) {
-            setUser(data.user);
-          } else {
-            setUser(null);
-          }
-        } catch {
-          setUser(null);
-        }
-      } else {
-        setUser(null);
-      }
+      setUser(null);
     } finally {
       setLoading(false);
     }
-  }, [refreshSession]);
+  }, []);
 
   useEffect(() => {
     loadUser();
@@ -89,7 +75,7 @@ export const AuthProvider = ({ children }) => {
         signup,
         updateProfile,
         logout,
-        refreshSession,
+        logout,
         reloadUser: loadUser
       }}
     >

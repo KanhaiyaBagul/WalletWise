@@ -42,8 +42,6 @@ const Reports = () => {
     trends: [],
     insights: [],
     topPlaces: [],
-    insights: [],
-    topPlaces: [],
     dailySpend: [],
     transactions: []
   });
@@ -221,7 +219,6 @@ const Reports = () => {
         weeklySpend,
         trends,
         insights,
-        topPlaces,
         topPlaces,
         dailySpend,
         transactions: monthExpenses

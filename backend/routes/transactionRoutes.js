@@ -20,4 +20,3 @@ router.put('/:id', protect, validate(transactionSchema), transactionController.u
 router.delete('/:id', protect, transactionController.deleteTransaction);
 
 module.exports = router;
-
