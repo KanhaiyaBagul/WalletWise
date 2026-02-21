@@ -138,6 +138,8 @@ const Signup = () => {
             data.message || "User already exists with this email or student ID";
         } else if (status === 500) {
           errorMessage = "Server error. Please try again later.";
+        } else if (status === 429) {
+          errorMessage = data.message || "Too many attempts. Please try again in 15 minutes.";
         }
       } else if (error.request) {
         console.error("No response from server. Is backend running?");

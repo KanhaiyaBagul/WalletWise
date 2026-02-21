@@ -175,6 +175,7 @@ const sendPasswordResetInstructions = async (user, { skipEmail } = {}) => {
 };
 
 const register = async (req, res) => {
+  console.log('📝 Incoming Registration Request:', JSON.stringify(req.body, null, 2));
   try {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -206,24 +207,24 @@ const register = async (req, res) => {
       emailVerified: false
     });
     await user.setPassword(password);
-await User.saveWithUniqueStudentId(user);
+    await User.saveWithUniqueStudentId(user);
 
-// ✅ Skip email verification for local testing
-user.emailVerified = true;
-await user.save();
+    // ✅ Skip email verification for local testing
+    user.emailVerified = true;
+    await user.save();
 
-const accessToken = signAccessToken(user);
-const refreshToken = signRefreshToken(user);
-user.refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-await user.save();
+    const accessToken = signAccessToken(user);
+    const refreshToken = signRefreshToken(user);
+    user.refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+    await user.save();
 
-setAuthCookies(res, accessToken, refreshToken);
+    setAuthCookies(res, accessToken, refreshToken);
 
-return res.status(201).json({
-  success: true,
-  message: 'Registration successful',
-  user: safeUser(user)
-});
+    return res.status(201).json({
+      success: true,
+      message: 'Registration successful',
+      user: safeUser(user)
+    });
 
   } catch (error) {
     console.error('Registration error:', error);
@@ -736,6 +737,8 @@ module.exports = {
   googleCallback,
   verifyEmail,
   resendEmailOtp,
+  requestPasswordReset,
+  verifyPasswordResetOtp,
   forgotPassword,
   resetPassword
 };

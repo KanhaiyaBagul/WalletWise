@@ -100,12 +100,8 @@ const userRegisterSchema = z.object({
   fullName: z.string().min(2, 'Full name is required').max(100),
   email: z.string().email('Invalid email format'),
   password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128, 'Password must not exceed 128 characters')
-    .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Must contain at least one number')
-    .regex(/[^a-zA-Z0-9]/, 'Must contain at least one special character'),
+    .min(6, 'Password must be at least 6 characters')
+    .max(128, 'Password must not exceed 128 characters'),
   department: z.string().max(100).optional(),
   year: z.string().max(20).optional()
 });

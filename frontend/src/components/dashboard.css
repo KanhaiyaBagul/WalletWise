@@ -5,13 +5,15 @@
    ========================================================================== */
 :root {
   /* Student Finance Palette */
-  --brand-primary: #6366f1; /* Indigo */
-  --brand-secondary: #0ea5e9; /* Sky Blue */
+  --brand-primary: #6366f1;
+  /* Indigo */
+  --brand-secondary: #0ea5e9;
+  /* Sky Blue */
   --success-pill: #10b981;
   --danger-pill: #ef4444;
   --warning-pill: #f59e0b;
   --purple-accent: #8b5cf6;
-  
+
   /* Neutral Palette */
   --bg-app: #f8fafc;
   --bg-card: #ffffff;
@@ -19,7 +21,7 @@
   --text-muted: #64748b;
   --border-subtle: #f1f5f9;
   --glass-border: rgba(255, 255, 255, 0.4);
-  
+
   /* Elevation & Curves */
   --shadow-soft: 0 10px 25px -5px rgba(0, 0, 0, 0.04), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
   --shadow-hover: 0 20px 30px -10px rgba(0, 0, 0, 0.08);
@@ -27,7 +29,7 @@
   --radius-lg: 16px;
   --radius-md: 12px;
   --radius-sm: 8px;
-  
+
   /* Animation */
   --transition-elegant: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
   --transition-fast: all 0.2s ease;
@@ -90,6 +92,7 @@
   font-size: 2rem;
   background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 2px 4px rgba(99, 102, 241, 0.2));
 }
@@ -100,6 +103,7 @@
   letter-spacing: -0.03em;
   background: linear-gradient(to right, var(--brand-primary), var(--brand-secondary));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin: 0;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -302,6 +306,7 @@
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -413,6 +418,7 @@
   letter-spacing: -0.02em;
   background: linear-gradient(to right, var(--brand-primary), var(--brand-secondary));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin: 0 0 0.5rem 0;
 }
@@ -422,8 +428,10 @@
 }
 
 .greeting-text {
-  white-space: normal;       /* allow normal wrapping */
-  overflow-wrap: break-word; /* wrap naturally if needed */
+  white-space: normal;
+  /* allow normal wrapping */
+  overflow-wrap: break-word;
+  /* wrap naturally if needed */
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--text-main);
@@ -515,6 +523,7 @@
   cursor: not-allowed;
   pointer-events: none;
 }
+
 .refresh-btn.refreshing {
   animation: pulseRefresh 1.5s ease-in-out infinite;
 }
@@ -523,9 +532,11 @@
   0% {
     box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
   }
+
   70% {
     box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
   }
+
   100% {
     box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
   }
@@ -536,8 +547,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* ==========================================================================
@@ -568,7 +584,8 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: #475569;   /* darker muted */
+  color: #475569;
+  /* darker muted */
   font-weight: 700;
   margin-bottom: 0.5rem;
 }
@@ -577,13 +594,15 @@
   font-size: 2.2rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: #0f172a;   /* strong readable */
+  color: #0f172a;
+  /* strong readable */
   margin: 0.25rem 0;
 }
 
 .stat-trend,
 .progress-text {
-  color: #64748b;   /* accessible secondary */
+  color: #64748b;
+  /* accessible secondary */
 }
 
 .progress-container {
@@ -632,10 +651,25 @@
   margin-bottom: 1rem;
 }
 
-.stat-icon.blue { background: rgba(37, 99, 235, 0.1); color: #2563eb; }
-.stat-icon.red { background: rgba(239, 68, 68, 0.1); color: var(--danger-pill); }
-.stat-icon.green { background: rgba(16, 185, 129, 0.1); color: var(--success-pill); }
-.stat-icon.purple { background: rgba(147, 51, 234, 0.1); color: var(--purple-accent); }
+.stat-icon.blue {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.stat-icon.red {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger-pill);
+}
+
+.stat-icon.green {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success-pill);
+}
+
+.stat-icon.purple {
+  background: rgba(147, 51, 234, 0.1);
+  color: var(--purple-accent);
+}
 
 /* ==========================================================================
    6. QUICK ACTIONS
@@ -679,7 +713,7 @@
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
   transition: 0.6s;
 }
 
@@ -689,7 +723,9 @@
   box-shadow: 0 15px 30px rgba(99, 102, 241, 0.1);
 }
 
-.action-card:hover::before { left: 100%; }
+.action-card:hover::before {
+  left: 100%;
+}
 
 .action-icon {
   width: 54px;
@@ -704,12 +740,35 @@
 }
 
 /* Action Icon Themes */
-.action-icon.blue { background: #eff6ff; color: #2563eb; }
-.action-icon.green { background: #f0fdf4; color: #16a34a; }
-.action-icon.orange { background: #fff7ed; color: #ea580c; }
-.action-icon.purple { background: #faf5ff; color: #9333ea; }
-.action-icon.pink { background: #fdf2f8; color: #db2777; }
-.action-icon.teal { background: #f0fdfa; color: #0d9488; }
+.action-icon.blue {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.action-icon.green {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.action-icon.orange {
+  background: #fff7ed;
+  color: #ea580c;
+}
+
+.action-icon.purple {
+  background: #faf5ff;
+  color: #9333ea;
+}
+
+.action-icon.pink {
+  background: #fdf2f8;
+  color: #db2777;
+}
+
+.action-icon.teal {
+  background: #f0fdfa;
+  color: #0d9488;
+}
 
 .action-card:hover .action-icon {
   background: var(--brand-primary);
@@ -815,16 +874,44 @@
   align-items: center;
   gap: 1.25rem;
   padding: 1.25rem;
-  background: #fcfdfe;
+  background: var(--bg-card, white);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   transition: var(--transition-elegant);
 }
 
 .transaction-card:hover {
-  background: white;
+  background: var(--bg-card);
   border-color: var(--brand-primary);
   transform: translateX(5px);
+  filter: brightness(0.98);
+}
+
+.transaction-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.transaction-details h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.transaction-category {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--brand-primary);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.transaction-date {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 .icon-bg {
@@ -837,16 +924,75 @@
   font-weight: 800;
 }
 
-.icon-bg.expense { background: #fff1f2; color: var(--danger-pill); }
-.icon-bg.income { background: #f0fdf4; color: var(--success-pill); }
+.icon-bg.expense {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger-pill);
+}
+
+.icon-bg.income {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success-pill);
+}
 
 .transaction-amount {
   font-weight: 700;
   font-size: 1.1rem;
 }
 
-.transaction-amount.expense { color: var(--danger-pill); }
-.transaction-amount.income { color: var(--success-pill); }
+.transaction-amount.expense {
+  color: var(--danger-pill);
+}
+
+.transaction-amount.income {
+  color: var(--success-pill);
+}
+
+/* Dark mode overrides for cards */
+.dark .transaction-card,
+.theme-dark .transaction-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark .transaction-card:hover,
+.theme-dark .transaction-card:hover {
+  background: #273549;
+}
+
+.dark .transaction-details h4,
+.theme-dark .transaction-details h4 {
+  color: #f1f5f9;
+}
+
+.dark .transaction-date,
+.theme-dark .transaction-date {
+  color: #94a3b8;
+}
+
+.dark .recent-transactions,
+.theme-dark .recent-transactions,
+.dark .stat-card,
+.theme-dark .stat-card,
+.dark .chart-container,
+.theme-dark .chart-container,
+.dark .action-card,
+.theme-dark .action-card,
+.dark .savings-summary,
+.theme-dark .savings-summary {
+  background: #0f172a;
+  border-color: #1e293b;
+}
+
+.dark .section-title,
+.theme-dark .section-title,
+.dark .chart-header h3,
+.theme-dark .chart-header h3,
+.dark .section-header h3,
+.theme-dark .section-header h3,
+.dark .stat-value,
+.theme-dark .stat-value {
+  color: #f1f5f9;
+}
 
 /* ==========================================================================
    9. SAVINGS GOALS
@@ -938,7 +1084,7 @@
     flex-direction: column;
     gap: 1.5rem;
   }
-  
+
   .dashboard-header-right {
     align-self: flex-start;
   }
@@ -948,15 +1094,15 @@
   .dashboard-header {
     padding: 1rem;
   }
-  
+
   .nav-center {
     justify-content: flex-end;
   }
-  
+
   .mobile-menu-toggle {
     display: flex;
   }
-  
+
   .nav-menu {
     display: none;
     position: absolute;
@@ -972,27 +1118,27 @@
     border-radius: 0 0 var(--radius-lg) var(--radius-lg);
     border-top: 1px solid var(--border-subtle);
   }
-  
+
   .nav-menu.active {
     display: flex;
   }
-  
+
   .nav-link {
     justify-content: center;
   }
-  
+
   .nav-link.active::after {
     bottom: -4px;
   }
-  
+
   .quick-stats {
     grid-template-columns: 1fr;
   }
-  
+
   .quick-actions-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .goals-grid {
     grid-template-columns: 1fr;
   }
@@ -1003,38 +1149,38 @@
     width: 95%;
     padding: 1rem 0;
   }
-  
+
   .dashboard-title {
     font-size: 2rem;
   }
-  
+
   .greeting-text {
     font-size: 1.25rem;
   }
-  
+
   .ai-insights-btn,
   .refresh-btn {
     padding: 0.75rem;
   }
-  
+
   .ai-insights-btn span,
   .refresh-btn span {
     display: none;
   }
-  
+
   .stat-card {
     padding: 1.5rem;
   }
-  
+
   .chart-container {
     padding: 1.5rem;
   }
-  
+
   .recent-transactions,
   .savings-summary {
     padding: 1.5rem;
   }
-  
+
   .transaction-card {
     grid-template-columns: 40px 1fr auto;
     gap: 1rem;
@@ -1046,20 +1192,20 @@
   .quick-actions-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .action-card {
     padding: 1.5rem 1rem;
   }
-  
+
   .empty-actions {
     flex-direction: column;
     gap: 0.75rem;
   }
-  
+
   .stat-value {
     font-size: 1.8rem;
   }
-  
+
   .action-buttons {
     flex-direction: column;
     gap: 0.75rem;
@@ -1196,6 +1342,7 @@ textarea:focus {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--brand-primary);
 }
+
 /* ==========================================================================  
    12. DASHBOARD REFRESH LOADING STATE  
    ========================================================================== */
