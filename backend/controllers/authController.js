@@ -49,6 +49,7 @@ const updateProfileSchema = z.object({
   currency: z.string().optional(),
   dateFormat: z.string().optional(),
   language: z.string().optional(),
+  theme: z.enum(['light', 'dark']).optional(),
   incomeFrequency: z.string().optional(),
   incomeSources: z.string().optional(),
   priorities: z.string().optional(),
@@ -100,7 +101,8 @@ const safeUser = (user) => ({
   incomeFrequency: user.incomeFrequency,
   incomeSources: user.incomeSources,
   priorities: user.priorities,
-  riskTolerance: user.riskTolerance
+  riskTolerance: user.riskTolerance,
+  theme: user.theme || 'light'
 });
 
 const sendVerificationOtp = async (user) => {
@@ -533,7 +535,7 @@ const updateProfile = asyncHandler(async (req, res) => {
 
   const {
     fullName, phoneNumber, department, year,
-    currency, dateFormat, language,
+    currency, dateFormat, language, theme,
     incomeFrequency, incomeSources, priorities, riskTolerance
   } = parsed.data;
 
@@ -545,6 +547,7 @@ const updateProfile = asyncHandler(async (req, res) => {
   if (currency !== undefined) user.currency = currency;
   if (dateFormat !== undefined) user.dateFormat = dateFormat;
   if (language !== undefined) user.language = language;
+  if (theme !== undefined) user.theme = theme;
   if (incomeFrequency !== undefined) user.incomeFrequency = incomeFrequency;
   if (incomeSources !== undefined) user.incomeSources = incomeSources;
   if (priorities !== undefined) user.priorities = priorities;

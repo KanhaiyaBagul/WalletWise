@@ -104,6 +104,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: 'English'
   },
+  theme: {
+    type: String,
+    enum: ['light', 'dark'],
+    default: 'light'
+  },
   // Financial Settings
   incomeFrequency: {
     type: String,
