@@ -36,6 +36,19 @@ export const AuthProvider = ({ children }) => {
     loadUser();
   }, [loadUser]);
 
+  // Listen for forced logout events triggered by the API interceptor
+  // (when token refresh fails after a 401). This avoids circular imports
+  // between AuthContext and client.js.
+  useEffect(() => {
+    const handleForceLogout = async () => {
+      await api.post('/api/auth/logout', {}).catch(() => { });
+      setUser(null);
+      window.location.href = '/login';
+    };
+    window.addEventListener('auth:logout', handleForceLogout);
+    return () => window.removeEventListener('auth:logout', handleForceLogout);
+  }, []);
+
   const login = async (payload) => {
     const { data } = await api.post('/api/auth/login', payload);
     if (data?.success) {
@@ -75,7 +88,7 @@ export const AuthProvider = ({ children }) => {
         signup,
         updateProfile,
         logout,
-        logout,
+        refreshSession,
         reloadUser: loadUser
       }}
     >

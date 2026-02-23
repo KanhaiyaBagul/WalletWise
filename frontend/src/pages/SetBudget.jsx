@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast';
 import api from '../api/client';
 import './SetBudget.css';
 import ConfirmDialog from "../components/ConfirmDialog";
+import { useAuth } from '../context/AuthContext';
 
 const DEFAULT_CATEGORIES = [
   { name: 'Food', categoryType: 'food', amount: 0, percentage: 0, color: '#FF6B6B' },
@@ -23,6 +24,9 @@ const SetBudget = ({ isOpen, onClose, onSetBudget }) => {
   });
 
   const [activeCategory, setActiveCategory] = useState(0);
+  const { user } = useAuth();
+  const currencySymbol = user?.currency === 'INR' ? '₹' : (user?.currency === 'EUR' ? '€' : (user?.currency === 'GBP' ? '£' : '$'));
+  const locale = user?.currency === 'INR' ? 'en-IN' : 'en-US';
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -281,7 +285,7 @@ const SetBudget = ({ isOpen, onClose, onSetBudget }) => {
               Total Monthly Budget *
             </label>
             <div className="total-budget-input">
-              <span className="budget-currency">₹</span>
+              <span className="budget-currency">{currencySymbol}</span>
               <input
                 type="number"
                 id="totalBudget"
@@ -364,7 +368,7 @@ const SetBudget = ({ isOpen, onClose, onSetBudget }) => {
                 <h3>{formData.categories[activeCategory].name}</h3>
                 <div className="category-stats">
                   <span className="stat-percentage">{formData.categories[activeCategory].percentage}%</span>
-                  <span className="stat-amount">₹{formData.categories[activeCategory].amount.toLocaleString()}</span>
+                  <span className="stat-amount">{currencySymbol}{formData.categories[activeCategory].amount.toLocaleString(locale)}</span>
                 </div>
               </div>
 
@@ -400,9 +404,9 @@ const SetBudget = ({ isOpen, onClose, onSetBudget }) => {
 
                 {/* Amount Input */}
                 <div className="control-group">
-                  <label>Amount (₹)</label>
+                  <label>Amount ({currencySymbol})</label>
                   <div className="amount-input-container">
-                    <span className="amount-currency">₹</span>
+                    <span className="amount-currency">{currencySymbol}</span>
                     <input
                       type="number"
                       min="0"
@@ -413,7 +417,7 @@ const SetBudget = ({ isOpen, onClose, onSetBudget }) => {
                       disabled={loading}
                     />
                     <span className="amount-hint">
-                      Max: ₹{(formData.totalBudget || 0).toLocaleString()}
+                      Max: {currencySymbol}{(formData.totalBudget || 0).toLocaleString(locale)}
                     </span>
                   </div>
                 </div>
@@ -437,7 +441,7 @@ const SetBudget = ({ isOpen, onClose, onSetBudget }) => {
               <div className="summary-item">
                 <span className="summary-label">Total Amount:</span>
                 <span className="summary-value amount">
-                  ₹{(formData.totalBudget || 0).toLocaleString()}
+                  {currencySymbol}{(formData.totalBudget || 0).toLocaleString(locale)}
                 </span>
               </div>
             </div>
