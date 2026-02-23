@@ -13,12 +13,18 @@ import {
 } from 'lucide-react';
 import api from '../api/client';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 import './SubscriptionDashboard.css';
 
-const formatCurrency = (amount) =>
-    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount || 0);
-
 const SubscriptionDashboard = () => {
+    const { user } = useAuth();
+
+    const formatCurrency = (amount) => {
+        const currency = user?.currency || 'USD';
+        const locale = currency === 'INR' ? 'en-IN' : 'en-US';
+        return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(amount || 0);
+    };
+
     const [subscriptions, setSubscriptions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [scanning, setScanning] = useState(false);

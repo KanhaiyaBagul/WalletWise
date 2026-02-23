@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Tesseract from 'tesseract.js';
 import { Scan, Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import './AddExpense.css';
 
 // 1. Added 'transactionToEdit' to props
@@ -17,6 +18,9 @@ const AddExpense = ({ isOpen, onClose, onAddExpense, transactionToEdit }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const fileInputRef = useRef(null);
+
+  const { user } = useAuth();
+  const currencySymbol = user?.currency === 'INR' ? '₹' : (user?.currency === 'EUR' ? '€' : (user?.currency === 'GBP' ? '£' : '$'));
 
   // 2. Added useEffect to pre-fill the form when editiSmart Receipt Scanning (OCR)Smart Receipt Scanning (OCR)ng
   useEffect(() => {
@@ -170,7 +174,7 @@ const AddExpense = ({ isOpen, onClose, onAddExpense, transactionToEdit }) => {
     // 2. Extract Amount
     let amount = '';
     // Look for patterns like "TOTAL 123.45", "AMOUNT $10.00", etc.
-    const amountRegex = /(?:total|amount|sum|net|grand total|total amount|payable|due|paid)[:\s]*[₹$€£\s]*([\d,]+\.?\d{0,2})/i;
+    const amountRegex = new RegExp(`(?:total|amount|sum|net|grand total|total amount|payable|due|paid)[:\\s]*[₹$€£\\s${currencySymbol}]*([\\d,]+\\.?\\d{0,2})`, 'i');
     const amountMatch = text.match(amountRegex);
 
     if (amountMatch && amountMatch[1]) {
@@ -322,7 +326,7 @@ const AddExpense = ({ isOpen, onClose, onAddExpense, transactionToEdit }) => {
           <div className="expense-form-group">
             <label htmlFor="amount">Amount (Required)</label>
             <div className="expense-amount-input">
-              <span className="currency-label">₹</span>
+              <span className="currency-label">{currencySymbol}</span>
               <input
                 type="number"
                 id="amount"

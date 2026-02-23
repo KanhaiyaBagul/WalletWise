@@ -146,9 +146,7 @@ const subscriptionRoutes = require('./routes/subscriptionRoutes');
 const insightsRoutes = require('./routes/insightsRoutes');
 
 // ==================== ROUTE MOUNTING ====================
-app.get('/test-error', asyncHandler(async (req,res)=>{
-  throw new Error("Working!");
-}));
+
 app.use('/api/auth', authRoutes);
 app.use('/auth', oauthRoutes);
 app.use('/api/budget', budgetRoutes);

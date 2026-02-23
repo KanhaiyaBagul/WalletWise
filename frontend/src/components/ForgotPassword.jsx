@@ -28,7 +28,10 @@ const ForgotPassword = () => {
             const response = await api.post('/api/auth/forgot-password', { email });
 
             if (response.data.success) {
-                toast.success(response.data.message);
+                toast.success('Check your email for an OTP.');
+                if (response.data.devOtp) {
+                    toast.info(`Dev Mode: Your OTP is ${response.data.devOtp}`, { autoClose: false });
+                }
                 setStep(2);
             } else {
                 toast.error(response.data.message || 'Failed to send OTP');

@@ -106,7 +106,6 @@ const transaction = new Transaction({
         }
 
         await withTransaction(async (session) => {
-
             let nextExecutionDate = null;
 
             if (isRecurring && recurringInterval) {
@@ -138,7 +137,6 @@ await User.findByIdAndUpdate(userId, {
                 message: 'Transaction added successfully',
                 transaction
             });
-
         });
 
     } catch (error) {

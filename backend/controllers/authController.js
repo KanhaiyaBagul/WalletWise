@@ -415,9 +415,11 @@ const requestPasswordReset = async (req, res) => {
         await sendPasswordResetInstructions(user);
         emailSent = true;
       } catch (mailError) {
-        if (process.env.NODE_ENV !== 'production' && /SMTP configuration missing/i.test(mailError?.message)) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn("Mail error (ignored in dev):", mailError.message);
           const fallback = await sendPasswordResetInstructions(user, { skipEmail: true });
           devResetLink = fallback.resetLink;
+          res.locals.devOtp = fallback.otp; // Store to send in response
         } else {
           throw mailError;
         }
@@ -428,7 +430,7 @@ const requestPasswordReset = async (req, res) => {
       success: true,
       message: 'If an account exists for this email, a password reset link has been sent.',
       emailSent,
-      ...(devResetLink ? { devResetLink } : {})
+      ...(devResetLink ? { devResetLink, devOtp: res.locals.devOtp } : {})
     });
   } catch (error) {
     return res.status(500).json({
@@ -440,12 +442,13 @@ const requestPasswordReset = async (req, res) => {
 
 const resetPassword = async (req, res) => {
   try {
-    const { email, otp, token, password } = req.body || {};
+    const { email, otp, token, newPassword, password } = req.body || {};
+    const effectivePassword = newPassword || password;
     const normalizedEmail = String(email || '').toLowerCase();
     const hasToken = Boolean(token);
     const hasOtpFlow = Boolean(normalizedEmail && otp);
 
-    if (!password || (!hasToken && !hasOtpFlow)) {
+    if (!effectivePassword || (!hasToken && !hasOtpFlow)) {
       return res.status(400).json({
         success: false,
         message: 'Password and either token or email+OTP are required'
@@ -480,7 +483,7 @@ const resetPassword = async (req, res) => {
       }
     }
 
-    await user.setPassword(password);
+    await user.setPassword(effectivePassword);
     user.passwordResetOtpHash = null;
     user.passwordResetOtpExpires = null;
     user.passwordResetOtpSentAt = null;
