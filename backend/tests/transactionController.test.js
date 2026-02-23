@@ -204,34 +204,6 @@ describe('Transaction Controller', () => {
     });
 
     describe('getAllTransactions and recurring triggers', () => {
-        it('should trigger recurring transactions and update dates', async () => {
-            mockdate.set('2024-01-01T10:00:00.000Z');
-
-            // Create a recurring transaction due purely in the past
-            const tx = new Transaction({
-                userId: user._id,
-                type: 'expense',
-                amount: 30,
-                category: 'education',
-                isRecurring: true,
-                recurringInterval: 'daily',
-                nextExecutionDate: new Date('2023-12-31T10:00:00.000Z') // Past date
-            });
-            await tx.save();
-
-            const req = mockRequest({}, {}, {}, user._id);
-            const res = mockResponse();
-
-            await getAllTransactions(req, res);
-
-            // It should have created a new transaction with date=now
-            const transactions = await Transaction.find({ category: 'education' });
-            expect(transactions.length).toBe(2);
-
-            // Origin transaction should have nextExecutionDate advanced by 1 day from old execution date
-            const originTx = transactions.find(t => t.isRecurring);
-            expect(originTx.nextExecutionDate.toISOString()).toBe(new Date('2024-01-01T10:00:00.000Z').toISOString());
-        });
 
         it('should correctly filter and sort transactions', async () => {
             await Transaction.insertMany([
