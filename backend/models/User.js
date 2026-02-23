@@ -104,6 +104,17 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: 'English'
   },
+  notificationPrefs: {
+    billRemindersEnabled: {
+      type: Boolean,
+      default: true
+    },
+    reminderDaysBefore: {
+      type: Number,
+      enum: [1, 3, 7],
+      default: 3
+    }
+  },
   // Financial Settings
   incomeFrequency: {
     type: String,
