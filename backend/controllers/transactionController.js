@@ -7,42 +7,23 @@ const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 
 const transactionSchema = z.object({
-    type: z.enum(['income', 'expense'], {
-        errorMap: () => ({ message: "Type must be either 'income' or 'expense'" })
-    }),
-    amount: z.preprocess(
-        (val) => (typeof val === 'string' ? Number(val) : val),
-        z.number({ invalid_type_error: "Amount must be a number" })
-            .finite()
-            .positive("Amount must be greater than 0")
-    ),
-    category: z.string().trim().min(1, "Category is required").toLowerCase(),
-    description: z.string().trim().optional().default(''),
-    paymentMethod: z.string().trim().optional().default('cash'),
-    mood: z.string().trim().optional().default('neutral'),
-    date: z.preprocess(
-        (val) => (val === '' || val === null || val === undefined ? undefined : new Date(val)),
-        z.date().optional()
-    ),
-    isRecurring: z.boolean().optional().default(false),
-    recurringInterval: z.enum(['daily', 'weekly', 'monthly']).nullable().optional()
+  type: z.enum(['income', 'expense']),
+  amount: z.preprocess(
+    (val) => (typeof val === 'string' ? Number(val) : val),
+    z.number().finite().positive("Amount must be greater than 0")
+  ),
+  category: z.string().trim().min(1, "Category is required").toLowerCase(),
+  description: z.string().trim().optional().default(''),
+  paymentMethod: z.string().trim().optional().default('cash'),
+  mood: z.string().trim().optional().default('neutral'),
+  date: z.preprocess(
+    (val) => (val ? new Date(val) : undefined),
+    z.date().optional()
+  ),
+  isRecurring: z.boolean().optional().default(false),
+  recurringInterval: z.enum(['daily','weekly','monthly']).nullable().optional()
 });
 
-// Helper to handle transaction cleanup
-const withTransaction = async (operation) => {
-    const session = await mongoose.startSession();
-    try {
-        session.startTransaction();
-        const result = await operation(session);
-        await session.commitTransaction();
-        return result;
-    } catch (error) {
-        await session.abortTransaction();
-        throw error;
-    } finally {
-        session.endSession();
-    }
-};
 
 // ================= ADD TRANSACTION =================
 const addTransaction = catchAsync(async (req, res, next) => {
@@ -326,7 +307,6 @@ res.json({
             message: 'Error deleting transaction'
         });
     }
-};
 
 const skipNextOccurrence = async (req, res) => {
     try {
@@ -375,6 +355,26 @@ const skipNextOccurrence = async (req, res) => {
             message: 'Error skipping next occurrence'
         });
     }
+
+    const balanceChange =
+      transaction.type==='income'
+        ? -transaction.amount
+        : transaction.amount;
+
+    await User.findByIdAndUpdate(userId,{
+      $inc:{walletBalance:balanceChange}
+    });
+
+    res.json({
+      success:true,
+      message:'Transaction deleted successfully',
+      deletedTransaction:transaction
+    });
+
+  }catch(error){
+    console.error('Delete transaction error:',error);
+    res.status(500).json({success:false,message:'Error deleting transaction'});
+  }
 };
 
 const undoTransaction = async (req, res) => {
